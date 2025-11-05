@@ -9,4 +9,5 @@ def home():
 def test():
     return "Testing... <br> good <br> okay"
 if __name__=="__main__":
-    app.run(debug=True)
+    port = int(os.environment.get("PORT",5000))
+    app.run(host="0.0.0.0",port=port)
