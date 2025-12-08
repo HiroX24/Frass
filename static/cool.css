@@ -1,65 +1,145 @@
-body{
-    body {
+/* Global reset-ish */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ------------ Layout ------------ */
+
+body {
   font-family: Arial, sans-serif;
   margin: 0;
-  background: #f9fafb;
+  background: #f3f4f6;
+  color: #111827;
 }
 
 header {
-  background: #fff;
-  padding: 15px 25px;
+  background: #ffffff;
+  padding: 12px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.logo {
+  font-size: 1.3rem;
+  letter-spacing: 1px;
+}
+
+/* ------------ Navbar ------------ */
+
+nav {
+  display: flex;
+  gap: 10px;
 }
 
 nav a {
-  margin: 0 10px;
+  margin: 0;
   text-decoration: none;
-  color: #333;
+  color: #374151;
   cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    background-color 0.12s ease,
+    color 0.12s ease;
+  font-size: 0.95rem;
 }
 
 nav a:hover {
+  background-color: #e5edff;
   color: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(37,99,235,0.22);
 }
+
+nav a:active {
+  transform: translateY(1px) scale(0.97);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2) inset;
+}
+
+/* ------------ Main & cards ------------ */
+
+main {
+  padding: 32px 16px 40px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.card {
+  background: #ffffff;
+  padding: 20px 22px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  margin-bottom: 20px;
+}
+
+/* ------------ Buttons ------------ */
 
 .btn {
   padding: 10px 20px;
-  border-radius: 6px;
+  border-radius: 8px;
   border: none;
   cursor: pointer;
+  font-size: 0.95rem;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    background-color 0.12s ease,
+    color 0.12s ease,
+    border-color 0.12s ease;
 }
 
 .btn-primary {
-  background: blue;
-  color: white;
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(37,99,235,0.4);
+}
+
+.btn-primary:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(37,99,235,0.6);
+}
+
+.btn-primary:active {
+  transform: translateY(1px) scale(0.97);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25) inset;
 }
 
 .btn-outline {
-  background: #fff;
+  background: #ffffff;
   border: 1px solid #2563eb;
   color: #2563eb;
 }
 
-.card {
-  background: #fff;
-  padding: 20px;
-  border-radius: 10px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+.btn-outline:hover {
+  background: #e5edff;
 }
 
-main {
-  padding: 40px;
-  max-width: 1000px;
-  margin: auto;
+.btn.big {
+  padding: 14px 24px;
+  font-size: 1rem;
 }
+
+/* ------------ Stats & grid ------------ */
 
 .stats {
   display: flex;
   gap: 20px;
   margin-top: 20px;
+  flex-wrap: wrap;
 }
 
 .stats .card {
@@ -67,4 +147,79 @@ main {
   text-align: center;
 }
 
+/* Generic grid used in dashboard/manage */
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
 }
+
+/* ------------ Forms & table ------------ */
+
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 9px 10px;
+  margin: 8px 0;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  background: #f9fafb;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37,99,235,0.2);
+  background: #ffffff;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 14px;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  border: 1px solid #e5e7eb;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+th {
+  background: #f3f4f6;
+  font-weight: 600;
+}
+
+/* ------------ Messages ------------ */
+
+.msg-error {
+  color: #e11d48;
+  margin-top: 6px;
+  font-size: 0.9rem;
+}
+
+.msg-info {
+  color: #16a34a;
+  margin-top: 6px;
+  font-size: 0.9rem;
+}
+
+/* ------------ Images ------------ */
+
+img {
+  border-radius: 6px;
+}
+
+/* Small bounce for clicks */
+.btn:active,
+nav a:active {
+  transform: translateY(1px) scale(0.97);
+    }
