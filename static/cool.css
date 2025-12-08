@@ -311,3 +311,19 @@ th {
     font-size: 1.4rem;
   }
 }
+
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 10px;
+}
+
+.table-wrapper table {
+  min-width: 100%;
+}
+
+.table-wrapper td img {
+  max-width: 60px;
+  height: auto;
+  border-radius: 6px;
+}
