@@ -70,9 +70,12 @@ def init_db():
     conn.close()
 
 
-@app.before_first_request
+# Flask 3 safe: no before_first_request, just call once at import
 def setup():
     init_db()
+
+
+setup()  # run DB init when app module is imported
 
 
 # ------------------------ ROUTES ------------------------ #
