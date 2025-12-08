@@ -10,9 +10,16 @@
 
 <header>
   <div class="logo"><b>FRASS</b></div>
+
+  <button id="navToggle" class="nav-toggle" aria-label="Toggle navigation" onclick="toggleNav()">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+
   <nav id="nav"></nav>
 </header>
-
+  
 <main id="content">
   <!-- Dynamic page content will load here -->
 </main>
@@ -20,5 +27,6 @@
 <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
+
 
 
