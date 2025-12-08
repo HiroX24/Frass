@@ -11,37 +11,57 @@ body {
   color: #111827;
 }
 
+.logo {
+  font-size: 1.3rem;
+  letter-spacing: 2px;
+}
+
 header {
   position: sticky;
   top: 0;
   z-index: 10;
   background: #ffffff;
   color: #111827;
-  padding: 12px 24px;
+  padding: 10px 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
 }
 
-.logo {
-  font-size: 1.3rem;
-  letter-spacing: 2px;
-}
+/* DROPDOWN NAV – hidden by default */
 
 nav {
+  position: absolute;
+  top: 52px;            /* just under header */
+  right: 16px;
+  background: #ffffff;
+  padding: 6px 0;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.16);
+  display: none;        /* toggled via .nav-open */
+  flex-direction: column;
+  min-width: 180px;
+}
+
+nav.nav-open {
   display: flex;
-  gap: 10px;
 }
 
 nav a {
-  padding: 6px 12px;
-  border-radius: 999px;
+  padding: 8px 14px;
+  border-radius: 0;
   text-decoration: none;
   color: #374151;
   font-size: 0.9rem;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, transform 0.08s ease;
+  width: 100%;
+  text-align: left;
+}
+
+nav a + a {
+  border-top: 1px solid #f3f4f6;
 }
 
 nav a:hover {
@@ -54,6 +74,37 @@ main {
   padding: 24px 12px 32px;
   max-width: 1100px;
   margin: 0 auto;
+}
+
+.nav-toggle {
+  display: block;       /* always show (desktop + mobile) */
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.nav-toggle span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: #111827;
+  border-radius: 999px;
+  margin: 4px 0;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+/* little cross animation when menu is open */
+.nav-toggle.nav-open span:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.nav-toggle.nav-open span:nth-child(2) {
+  opacity: 0;
+}
+
+.nav-toggle.nav-open span:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
 }
 
 /* ---------- CARDS & LAYOUT ---------- */
