@@ -1,138 +1,252 @@
 import os
-import cv2
-import numpy as np
+import sqlite3
 from io import BytesIO
 
+import cv2
+import numpy as np
 from flask import (
     Flask, render_template, request,
-    send_file, jsonify, session
+    jsonify, send_file, session
 )
-import mysql.connector
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "frass.db")
+UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads")
 
 app = Flask(__name__)
+app.secret_key = "FRASS_SECRET_KEY_CHANGE_ME"   # for sessions
 
-# Use env var in production, fallback for local dev
-app.secret_key = os.environ.get("SECRET_KEY", "FRASS_DEV_SECRET")
+
+# ------------------------ DB HELPERS ------------------------ #
 
 def get_db_connection():
-    return mysql.connector.connect(
-        host=os.environ.get("DB_HOST", "localhost"),
-        user=os.environ.get("DB_USER", "root"),
-        password=os.environ.get("DB_PASSWORD", ""),
-        database=os.environ.get("DB_NAME", "facerecognition")
-    )
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
-# --------------------------------------
-# HOME
-# --------------------------------------
-@app.route('/')
-def home():
-    return render_template('main.html')
 
-# --------------------------------------
-# LOGIN
-# --------------------------------------
-@app.route('/api/login', methods=['POST'])
-def login():
-    email = request.form['email']
-    password = request.form['password']
+def init_db():
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
 
     conn = get_db_connection()
-    cur = conn.cursor(dictionary=True)
+    cur = conn.cursor()
+
+    # USERS TABLE
     cur.execute(
-        "SELECT * FROM users WHERE email=%s AND password=%s",
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            email     TEXT UNIQUE NOT NULL,
+            password  TEXT NOT NULL
+        )
+        """
+    )
+
+    # STUDENTS TABLE (serial, roll, name, course, branch, image, face_id)
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS students (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            roll_no    TEXT NOT NULL,
+            name       TEXT NOT NULL,
+            course     TEXT NOT NULL,
+            branch     TEXT NOT NULL,
+            image_path TEXT,
+            face_id    TEXT
+        )
+        """
+    )
+
+    # default auto user
+    cur.execute(
+        """
+        INSERT OR IGNORE INTO users (email, password)
+        VALUES (?, ?)
+        """,
+        ("admin@frass.com", "admin123")
+    )
+
+    conn.commit()
+    conn.close()
+
+
+@app.before_first_request
+def setup():
+    init_db()
+
+
+# ------------------------ ROUTES ------------------------ #
+
+@app.route("/")
+def home():
+    return render_template("main.html")
+
+
+# ---------- AUTH: SIGNUP & LOGIN ---------- #
+
+@app.route("/api/signup", methods=["POST"])
+def signup():
+    email = request.form.get("email", "").strip()
+    password = request.form.get("password", "").strip()
+
+    if not email or not password:
+        return jsonify({"status": "error", "message": "Email and password required"})
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        cur.execute(
+            "INSERT INTO users (email, password) VALUES (?, ?)",
+            (email, password)
+        )
+        conn.commit()
+    except sqlite3.IntegrityError:
+        conn.close()
+        return jsonify({"status": "error", "message": "Email already registered"})
+    conn.close()
+
+    return jsonify({"status": "success", "message": "User registered successfully"})
+
+
+@app.route("/api/login", methods=["POST"])
+def login():
+    email = request.form.get("email", "").strip()
+    password = request.form.get("password", "").strip()
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT * FROM users
+        WHERE LOWER(email) = LOWER(?)
+          AND LOWER(password) = LOWER(?)
+        """,
         (email, password)
     )
     user = cur.fetchone()
-    cur.close()
     conn.close()
 
     if user:
-        session['logged_in'] = True
+        session["logged_in"] = True
+        session["user_email"] = email
         return jsonify({"status": "success"})
     else:
-        return jsonify({"status": "error", "message": "Invalid Email or Password"})
+        return jsonify({"status": "error", "message": "Invalid email or password"})
 
-# --------------------------------------
-# SHOW STUDENT TABLE
-# --------------------------------------
-@app.route('/api/students')
+
+@app.route("/api/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return jsonify({"status": "success"})
+
+
+# ---------- STUDENT CRUD ---------- #
+
+@app.route("/api/students", methods=["GET"])
 def get_students():
     conn = get_db_connection()
-    cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT * FROM students")
-    students = cur.fetchall()
-    cur.close()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT id, roll_no, name, course, branch, image_path, face_id "
+        "FROM students ORDER BY id ASC"
+    )
+    rows = cur.fetchall()
     conn.close()
+    students = [dict(r) for r in rows]
     return jsonify(students)
 
-# --------------------------------------
-# ADD / UPDATE STUDENT
-# --------------------------------------
-@app.route('/api/save_student', methods=['POST'])
+
+@app.route("/api/save_student", methods=["POST"])
 def save_student():
-    data = request.form
+    sid = request.form.get("id")  # may be empty
+    roll_no = request.form.get("roll_no", "").strip()
+    name = request.form.get("name", "").strip()
+    course = request.form.get("course", "").strip()
+    branch = request.form.get("branch", "").strip()
+
+    if not roll_no or not name or not course or not branch:
+        return jsonify({"status": "error", "message": "All fields are required"})
+
+    photo = request.files.get("photo")
+    image_path = None
+
+    if photo and photo.filename:
+        filename = f"{roll_no}.png"
+        full_path = os.path.join(UPLOAD_DIR, filename)
+        photo.save(full_path)
+        image_path = f"uploads/{filename}"
+
+    # In this basic version, use roll_no as face_id
+    face_id = roll_no
+
     conn = get_db_connection()
     cur = conn.cursor()
 
-    cur.execute("SELECT student_id FROM students WHERE student_id=%s",
-                (data['student_id'],))
-    exists = cur.fetchone()
+    if sid:
+        # Get current image_path if we didn't upload new one
+        if image_path is None:
+            cur.execute("SELECT image_path FROM students WHERE id = ?", (sid,))
+            row = cur.fetchone()
+            image_path = row["image_path"] if row else None
 
-    if exists:
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE students
-            SET roll_no=%s, name=%s, gender=%s, dob=%s,
-                contact_no=%s, email=%s, class=%s, section=%s
-            WHERE student_id=%s
-        """, (
-            data['roll_no'], data['name'], data['gender'],
-            data['dob'], data['contact_no'], data['email'],
-            data['class'], data['section'], data['student_id']
-        ))
-        msg = "✅ Student Updated Successfully"
+            SET roll_no = ?, name = ?, course = ?, branch = ?, image_path = ?, face_id = ?
+            WHERE id = ?
+            """,
+            (roll_no, name, course, branch, image_path, face_id, sid)
+        )
+        msg = "Student updated successfully"
     else:
-        cur.execute("""
-            INSERT INTO students
-            (student_id, roll_no, name, gender, dob,
-             contact_no, email, class, section)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
-        """, (
-            data['student_id'], data['roll_no'], data['name'],
-            data['gender'], data['dob'], data['contact_no'],
-            data['email'], data['class'], data['section']
-        ))
-        msg = "✅ Student Added Successfully"
+        cur.execute(
+            """
+            INSERT INTO students (roll_no, name, course, branch, image_path, face_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (roll_no, name, course, branch, image_path, face_id)
+        )
+        msg = "Student added successfully"
 
     conn.commit()
-    cur.close()
     conn.close()
-    return jsonify({"message": msg})
+    return jsonify({"status": "success", "message": msg})
 
-# --------------------------------------
-# DELETE STUDENT
-# --------------------------------------
-@app.route('/api/delete_student', methods=['POST'])
+
+@app.route("/api/delete_student", methods=["POST"])
 def delete_student():
-    roll = request.form['roll_no']
+    roll_no = request.form.get("roll_no", "").strip()
 
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("DELETE FROM students WHERE roll_no=%s", (roll,))
+    cur.execute("DELETE FROM students WHERE roll_no = ?", (roll_no,))
     conn.commit()
-
-    affected = cur.rowcount
-    cur.close()
+    deleted = cur.rowcount
     conn.close()
 
-    if affected > 0:
-        return jsonify({"message": "✅ Student Deleted Successfully"})
+    if deleted > 0:
+        return jsonify({"status": "success", "message": "Student deleted successfully"})
     else:
-        return jsonify({"message": "⚠ No student found with that Roll Number"})
+        return jsonify({"status": "error", "message": "No student with that Roll Number"})
 
-# --------------------------------------
-# EXAMPLE OPENCV ROUTE (upload -> gray image)
-# --------------------------------------
+
+# ---------- LOOKUP BY face_id (for future OpenCV) ---------- #
+
+@app.route("/api/student_by_face/<face_id>", methods=["GET"])
+def student_by_face(face_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM students WHERE face_id = ?", (face_id,))
+    row = cur.fetchone()
+    conn.close()
+    if row:
+        return jsonify(dict(row))
+    return jsonify({"status": "error", "message": "No student found"}), 404
+
+
+# ---------- OPENCV DEMO ROUTE ---------- #
+
 @app.route("/api/process_image", methods=["POST"])
 def process_image():
     file = request.files.get("image")
@@ -141,13 +255,16 @@ def process_image():
 
     file_bytes = np.frombuffer(file.read(), np.uint8)
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+    if img is None:
+        return "Invalid image", 400
 
-    # demo: convert to grayscale
+    # demo: grayscale
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    ok, buffer = cv2.imencode(".png", gray)
+    if not ok:
+        return "Processing error", 500
 
-    _, buffer = cv2.imencode(".png", gray)
     io_buf = BytesIO(buffer.tobytes())
-
     return send_file(io_buf, mimetype="image/png")
 
 
