@@ -1,37 +1,33 @@
-/* Global reset-ish */
 * {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
 }
 
-/* ------------ Layout ------------ */
+/* ---------- BASE ---------- */
 
 body {
-  font-family: Arial, sans-serif;
   margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: #f3f4f6;
   color: #111827;
 }
 
 header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   background: #ffffff;
+  color: #111827;
   padding: 12px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
 }
 
 .logo {
   font-size: 1.3rem;
-  letter-spacing: 1px;
+  letter-spacing: 2px;
 }
-
-/* ------------ Navbar ------------ */
 
 nav {
   display: flex;
@@ -39,83 +35,163 @@ nav {
 }
 
 nav a {
-  margin: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
   text-decoration: none;
   color: #374151;
+  font-size: 0.9rem;
   cursor: pointer;
-  padding: 8px 12px;
-  border-radius: 6px;
-  transition:
-    transform 0.12s ease,
-    box-shadow 0.12s ease,
-    background-color 0.12s ease,
-    color 0.12s ease;
-  font-size: 0.95rem;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.08s ease;
 }
 
 nav a:hover {
-  background-color: #e5edff;
-  color: #2563eb;
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
   transform: translateY(-1px);
-  box-shadow: 0 3px 6px rgba(37,99,235,0.22);
 }
-
-nav a:active {
-  transform: translateY(1px) scale(0.97);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2) inset;
-}
-
-/* ------------ Main & cards ------------ */
 
 main {
-  padding: 32px 16px 40px;
-  max-width: 1000px;
+  padding: 24px 12px 32px;
+  max-width: 1100px;
   margin: 0 auto;
 }
 
+/* ---------- CARDS & LAYOUT ---------- */
+
 .card {
   background: #ffffff;
-  padding: 20px 22px;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  margin-bottom: 20px;
+  padding: 20px 18px;
+  border-radius: 16px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+  margin-bottom: 16px;
+  animation: fadeIn 0.2s ease-out;
 }
 
-/* ------------ Buttons ------------ */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.6fr);
+  gap: 16px;
+  align-items: center;
+}
 
-.btn {
-  padding: 10px 20px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  font-size: 0.95rem;
+.hero-title {
+  font-size: 1.6rem;
+  margin-bottom: 0.3rem;
+}
+
+.hero-subtitle {
+  color: #6b7280;
+  margin-bottom: 0.8rem;
+  font-size: 0.92rem;
+}
+
+.pill {
   display: inline-flex;
-  justify-content: center;
   align-items: center;
   gap: 6px;
-  transition:
-    transform 0.12s ease,
-    box-shadow 0.12s ease,
-    background-color 0.12s ease,
-    color 0.12s ease,
-    border-color 0.12s ease;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.7rem;
+  margin-bottom: 0.4rem;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 0.8rem;
+}
+
+.hero-side {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #eff6ff;
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.hero-metric {
+  font-size: 0.78rem;
+  opacity: 0.9;
+}
+
+.hero-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.section-title {
+  margin-top: 10px;
+  margin-bottom: 8px;
+  font-size: 1rem;
+}
+
+/* ---------- GRID / STATS ---------- */
+
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.grid > * {
+  flex: 1 1 180px;
+}
+
+.dash-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0 6px;
+}
+
+.stat-card {
+  flex: 1 1 180px;
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.stat-label {
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+
+.stat-value {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* ---------- BUTTONS ---------- */
+
+.btn {
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background 0.15s ease, transform 0.08s ease, box-shadow 0.15s ease;
 }
 
 .btn-primary {
   background: #2563eb;
   color: #ffffff;
-  box-shadow: 0 2px 6px rgba(37,99,235,0.4);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
 }
 
 .btn-primary:hover {
   background: #1d4ed8;
   transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(37,99,235,0.6);
-}
-
-.btn-primary:active {
-  transform: translateY(1px) scale(0.97);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.25) inset;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.45);
 }
 
 .btn-outline {
@@ -125,173 +201,113 @@ main {
 }
 
 .btn-outline:hover {
-  background: #e5edff;
+  background: rgba(37, 99, 235, 0.06);
 }
 
 .btn.big {
-  padding: 14px 24px;
-  font-size: 1rem;
+  padding: 11px 18px;
+  font-size: 0.95rem;
 }
 
-/* ------------ Stats & grid ------------ */
-
-.stats {
-  display: flex;
-  gap: 20px;
-  margin-top: 20px;
-  flex-wrap: wrap;
-}
-
-.stats .card {
-  flex: 1;
-  text-align: center;
-}
-
-/* Generic grid used in dashboard/manage */
-.grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 12px;
-}
-
-/* ------------ Forms & table ------------ */
+/* ---------- FORMS / TABLES ---------- */
 
 input,
-select,
-textarea {
+select {
   width: 100%;
-  padding: 9px 10px;
-  margin: 8px 0;
-  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 6px 0;
+  border-radius: 10px;
   border: 1px solid #d1d5db;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   outline: none;
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
-  background: #f9fafb;
+  transition: border 0.15s ease, box-shadow 0.15s ease;
 }
 
 input:focus,
-select:focus,
-textarea:focus {
+select:focus {
   border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37,99,235,0.2);
-  background: #ffffff;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.35);
+}
+
+.msg-error {
+  color: #dc2626;
+  font-size: 0.82rem;
+}
+
+.msg-info {
+  color: #16a34a;
+  font-size: 0.82rem;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 14px;
-  font-size: 0.9rem;
+  margin-top: 10px;
+  font-size: 0.82rem;
 }
 
 th,
 td {
-  border: 1px solid #e5e7eb;
-  padding: 8px 10px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #e5e7eb;
   text-align: left;
 }
 
 th {
   background: #f3f4f6;
-  font-weight: 600;
 }
 
-/* ------------ Messages ------------ */
+/* ---------- ANIMATION ---------- */
 
-.msg-error {
-  color: #e11d48;
-  margin-top: 6px;
-  font-size: 0.9rem;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.msg-info {
-  color: #16a34a;
-  margin-top: 6px;
-  font-size: 0.9rem;
-}
+/* ---------- RESPONSIVE ---------- */
 
-/* ------------ Images ------------ */
-
-img {
-  border-radius: 6px;
-}
-
-/* Small bounce for clicks */
-.btn:active,
-nav a:active {
-  transform: translateY(1px) scale(0.97);
-    }
-/* ------------ Responsive Rules ------------ */
-
-/* Mobile (landscape & below) */
 @media (max-width: 900px) {
   main {
-    padding: 20px 10px;
-    width: 100%;
+    padding: 20px 10px 28px;
   }
 
   header {
     flex-direction: column;
     align-items: flex-start;
+    gap: 4px;
   }
 
   nav {
     flex-wrap: wrap;
     width: 100%;
     gap: 6px;
-    margin-top: 8px;
   }
 
   nav a {
-    flex: 1 1 auto;
-    text-align: center;
+    font-size: 0.8rem;
   }
 
-  .stats {
-    flex-direction: column;
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .card {
-    padding: 16px;
+  .btn {
     width: 100%;
   }
 
   table {
     font-size: 0.75rem;
   }
-
-  th,
-  td {
-    padding: 5px;
-  }
-
-  img {
-    max-width: 90%;
-  }
-
-  /* Buttons take full width for mobile friendliness */
-  .btn {
-    width: 100%;
-    max-width: 100%;
-  }
-
-  .grid {
-    width: 100%;
-    flex-direction: column;
-  }
 }
 
-/* Tiny screens */
 @media (max-width: 480px) {
-  nav a {
-    font-size: 0.8rem;
-    padding: 6px 10px;
-  }
-
-  .btn.big {
-    font-size: 0.9rem;
-    padding: 12px;
+  .hero-title {
+    font-size: 1.4rem;
   }
 }
