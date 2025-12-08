@@ -1,5 +1,4 @@
 import os
-import sqlite3
 from io import BytesIO
 
 import cv2
@@ -8,20 +7,28 @@ from flask import (
     Flask, render_template, request,
     jsonify, send_file, session
 )
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "frass.db")
 UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads")
 
 app = Flask(__name__)
 app.secret_key = "FRASS_SECRET_KEY_CHANGE_ME"   # for sessions
 
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable not set")
+
 
 # ------------------------ DB HELPERS ------------------------ #
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    """
+    Open a new connection to PostgreSQL using DATABASE_URL.
+    Returns a connection with RealDictCursor so rows behave like dicts.
+    """
+    conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
     return conn
 
 
@@ -35,7 +42,7 @@ def init_db():
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS users (
-            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            id        SERIAL PRIMARY KEY,
             email     TEXT UNIQUE NOT NULL,
             password  TEXT NOT NULL
         )
@@ -46,22 +53,23 @@ def init_db():
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS students (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            id         SERIAL PRIMARY KEY,
             roll_no    TEXT NOT NULL,
-            name       TEXT NOT NULL,
-            course     TEXT NOT NULL,
-            branch     TEXT NOT NULL,
+            name       TEXT,
+            course     TEXT,
+            branch     TEXT,
             image_path TEXT,
             face_id    TEXT
         )
         """
     )
 
-    # default auto user
+    # default auto user (ignore if already exists)
     cur.execute(
         """
-        INSERT OR IGNORE INTO users (email, password)
-        VALUES (?, ?)
+        INSERT INTO users (email, password)
+        VALUES (%s, %s)
+        ON CONFLICT (email) DO NOTHING
         """,
         ("admin@frass.com", "admin123")
     )
@@ -70,12 +78,12 @@ def init_db():
     conn.close()
 
 
-# Flask 3 safe: no before_first_request, just call once at import
 def setup():
     init_db()
 
 
-setup()  # run DB init when app module is imported
+# run DB init when app module is imported
+setup()
 
 
 # ------------------------ ROUTES ------------------------ #
@@ -100,13 +108,18 @@ def signup():
 
     try:
         cur.execute(
-            "INSERT INTO users (email, password) VALUES (?, ?)",
+            "INSERT INTO users (email, password) VALUES (%s, %s)",
             (email, password)
         )
         conn.commit()
-    except sqlite3.IntegrityError:
+    except psycopg2.errors.UniqueViolation:
+        conn.rollback()
         conn.close()
         return jsonify({"status": "error", "message": "Email already registered"})
+    except psycopg2.Error:
+        conn.rollback()
+        conn.close()
+        return jsonify({"status": "error", "message": "Database error"})
     conn.close()
 
     return jsonify({"status": "success", "message": "User registered successfully"})
@@ -122,8 +135,8 @@ def login():
     cur.execute(
         """
         SELECT * FROM users
-        WHERE LOWER(email) = LOWER(?)
-          AND LOWER(password) = LOWER(?)
+        WHERE LOWER(email) = LOWER(%s)
+          AND LOWER(password) = LOWER(%s)
         """,
         (email, password)
     )
@@ -151,16 +164,17 @@ def get_students():
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT id, roll_no, name, course, branch, image_path, face_id "
-        "FROM students ORDER BY id ASC"
+        """
+        SELECT id, roll_no, name, course, branch, image_path, face_id
+        FROM students
+        ORDER BY id ASC
+        """
     )
     rows = cur.fetchall()
     conn.close()
-    students = [dict(r) for r in rows]
-    return jsonify(students)
+    # rows are already dicts because of RealDictCursor
+    return jsonify(rows)
 
-
-@app.route("/api/save_student", methods=["POST"])
 
 @app.route("/api/save_student", methods=["POST"])
 def save_student():
@@ -176,7 +190,7 @@ def save_student():
     cur = conn.cursor()
 
     # Check if the roll number already exists
-    cur.execute("SELECT * FROM students WHERE roll_no = ?", (roll_no,))
+    cur.execute("SELECT * FROM students WHERE roll_no = %s", (roll_no,))
     existing = cur.fetchone()
 
     photo = request.files.get("photo")
@@ -184,64 +198,66 @@ def save_student():
     if photo and photo.filename:
         filename = f"{roll_no}.png"
         full_path = os.path.join(UPLOAD_DIR, filename)
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
         photo.save(full_path)
         image_path = f"uploads/{filename}"
 
-    # If student exists → UPDATE
+    # face_id = roll_no in this basic version
+    face_id = roll_no
+
     if existing:
+        # UPDATE only fields that are provided
         update_fields = []
         update_values = []
 
         if name:
-            update_fields.append("name = ?")
+            update_fields.append("name = %s")
             update_values.append(name)
 
         if course:
-            update_fields.append("course = ?")
+            update_fields.append("course = %s")
             update_values.append(course)
 
         if branch:
-            update_fields.append("branch = ?")
+            update_fields.append("branch = %s")
             update_values.append(branch)
 
         if image_path:
-            update_fields.append("image_path = ?")
+            update_fields.append("image_path = %s")
             update_values.append(image_path)
 
-        # Always update face_id = roll_no
-        update_fields.append("face_id = ?")
-        update_values.append(roll_no)
+        update_fields.append("face_id = %s")
+        update_values.append(face_id)
 
         if update_fields:
             update_values.append(roll_no)
-            cur.execute(
-                f"UPDATE students SET {', '.join(update_fields)} WHERE roll_no = ?",
-                update_values
-            )
+            sql = f"UPDATE students SET {', '.join(update_fields)} WHERE roll_no = %s"
+            cur.execute(sql, update_values)
             conn.commit()
 
         conn.close()
         return jsonify({"status": "success", "message": "Student updated successfully"})
 
-    # If not exists → INSERT new
+    # INSERT new student
     cur.execute(
         """
         INSERT INTO students (roll_no, name, course, branch, image_path, face_id)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s)
         """,
-        (roll_no, name, course, branch, image_path, roll_no)
+        (roll_no, name, course, branch, image_path, face_id)
     )
     conn.commit()
     conn.close()
     return jsonify({"status": "success", "message": "Student added successfully"})
-    
+
+
 @app.route("/api/delete_student", methods=["POST"])
 def delete_student():
     roll_no = request.form.get("roll_no", "").strip()
 
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("DELETE FROM students WHERE roll_no = ?", (roll_no,))
+    cur.execute("DELETE FROM students WHERE roll_no = %s", (roll_no,))
     conn.commit()
     deleted = cur.rowcount
     conn.close()
@@ -258,11 +274,11 @@ def delete_student():
 def student_by_face(face_id):
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM students WHERE face_id = ?", (face_id,))
+    cur.execute("SELECT * FROM students WHERE face_id = %s", (face_id,))
     row = cur.fetchone()
     conn.close()
     if row:
-        return jsonify(dict(row))
+        return jsonify(row)
     return jsonify({"status": "error", "message": "No student found"}), 404
 
 
