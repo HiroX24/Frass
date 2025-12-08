@@ -131,14 +131,32 @@ const pages = {
   `
 };
 
+let isPop = false;
+
 function showPage(page) {
   const publicPages = ["home", "login", "signup"];
+  
   if (!isLoggedIn && !publicPages.includes(page)) {
     page = "login";
   }
+
   document.getElementById("content").innerHTML = pages[page];
   renderNav();
+
+  // Only push into history when navigation is user-triggered
+  if (!isPop) {
+    history.pushState({ page }, "", "#" + page);
+  }
+  
+  isPop = false;
 }
+
+window.onpopstate = function(event) {
+  if (event.state && event.state.page) {
+    isPop = true;
+    showPage(event.state.page);
+  }
+};
 
 
 // ---------- AUTH ---------- //
