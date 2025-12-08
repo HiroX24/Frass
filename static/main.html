@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>FRASS System</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='cool.css') }}">
+</head>
+<body>
+
+<header>
+  <div class="logo"><b>FRASS</b></div>
+  <nav>
+    <a onclick="showPage('home')">Home</a>
+    <a onclick="showPage('login')">Login</a>
+    <a onclick="showPage('register')">Update DB</a>
+    <a onclick="showPage('show')">Show DB</a>
+    <a onclick="showPage('delete')">Delete</a>
+  </nav>
+</header>
+
+<main id="content"></main>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
