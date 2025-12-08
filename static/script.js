@@ -1,3 +1,5 @@
+let isLoggedIn = false; // Track login status on frontend
+
 const pages = {
 
   // -------------------- HOME --------------------
@@ -7,7 +9,6 @@ const pages = {
       <p>Smart Student Record & Attendance System</p>
       <div style="margin-top:20px;">
         <button class="btn btn-primary" onclick="showPage('login')">Login</button>
-        <button class="btn btn-outline" onclick="showPage('register')">Update Database</button>
       </div>
     </div>
 
@@ -18,19 +19,19 @@ const pages = {
     </div>
   `,
 
-  // -------------------- LOGIN --------------------
+  // -------------------- LOGIN PAGE --------------------
   login: `
     <div class="card" style="max-width:400px;margin:auto;">
       <h2>Login</h2>
       <input id="login_email" type="email" placeholder="Email" required>
-      <input id="login_password" type="password" placeholder="Password" required>
+      <input id="login_password" type="password" placeholder="Password" required minlength="8">
       <button onclick="login()" class="btn btn-primary">Login</button>
       <p id="login_msg" style="color:red;"></p>
     </div>
   `,
 
-  // -------------------- UPDATE / ADD STUDENT --------------------
-  register: `
+  // -------------------- REGISTER / UPDATE STUDENT --------------------
+  register: (`
     <div class="card" style="max-width:600px;margin:auto;">
       <h2>Add / Update Student</h2>
       <form onsubmit="saveStudent(event)">
@@ -55,9 +56,9 @@ const pages = {
       </form>
       <p id="save_msg" style="color:green;"></p>
     </div>
-  `,
+  `),
 
-  // -------------------- SHOW DATABASE --------------------
+  // -------------------- SHOW DB --------------------
   show: `
     <div class="card">
       <h2>Student Database</h2>
@@ -66,64 +67,65 @@ const pages = {
     </div>
   `,
 
-  // -------------------- SUPPORT --------------------
-  support: `
-    <div class="card" style="max-width:500px;margin:auto;">
-      <h2>Support</h2>
-      <p>Need help? Contact us at <b>support@frass.local</b></p>
-      <textarea placeholder="Describe your issue..." style="width:100%;padding:10px;margin:10px 0;"></textarea>
-      <button class="btn btn-primary">Submit</button>
+  // -------------------- DELETE STUDENT --------------------
+  delete: `
+    <div class="card" style="max-width:400px;margin:auto;">
+      <h2>Delete Student</h2>
+      <input id="delete_roll" type="text" placeholder="Enter Roll Number" style="width:100%;padding:10px;margin:10px 0;">
+      <button class="btn btn-primary" onclick="deleteStudent()">Delete</button>
+      <p id="delete_msg" style="color:red;margin-top:10px;"></p>
+    </div>
+  `,
+
+  // -------------------- SCAN (OpenCV) --------------------
+  scan: `
+    <div class="card" style="max-width:400px;margin:auto;">
+      <h2>Upload Photo for Scan</h2>
+      <input type="file" id="imageInput" accept="image/*">
+      <button class="btn btn-primary" onclick="processImage()">Process</button>
+      <h3>Result:</h3>
+      <img id="outputImg" style="max-width:300px;">
     </div>
   `
-,
+};
 
-delete: `
-  <div class="card" style="max-width:400px;margin:auto;">
-    <h2>Delete Student</h2>
-    <input id="delete_roll" type="text" placeholder="Enter Roll Number" style="width:100%;padding:10px;margin:10px 0;">
-    <button class="btn btn-primary" onclick="deleteStudent()">Delete</button>
-    <p id="delete_msg" style="color:red;margin-top:10px;"></p>
-  </div>
-`};
+// -------------------- LOGIN FUNC --------------------
+async function login(){
+  const email = document.getElementById("login_email").value;
+  const pass = document.getElementById("login_password").value;
 
-async function deleteStudent(){
-  const roll = document.getElementById("delete_roll").value;
-  if(!roll){
-    document.getElementById("delete_msg").innerText = "⚠ Enter Roll Number";
-    return;
+  if(!email.includes("@") || !email.includes(".")){
+    return document.getElementById("login_msg").innerText = "Invalid email format 🫠";
+  }
+  if(pass.length < 8){
+    return document.getElementById("login_msg").innerText = "Password must be 8+ characters 😒";
   }
 
   const form = new FormData();
-  form.append("roll_no", roll);
-
-  const r = await fetch('/api/delete_student', { method: 'POST', body: form });
-  const res = await r.json();
-
-  document.getElementById("delete_msg").innerText = res.message;
-}
-
-// -------------------- PAGE LOADER --------------------
-function showPage(page) {
-  document.getElementById('content').innerHTML = pages[page];
-}
-
-// -------------------- LOGIN --------------------
-async function login(){
-  const form = new FormData();
-  form.append("email", document.getElementById("login_email").value);
-  form.append("password", document.getElementById("login_password").value);
+  form.append("email", email);
+  form.append("password", pass);
 
   const r = await fetch('/api/login', { method:'POST', body:form });
   const res = await r.json();
 
   if(res.status === "success"){
+    isLoggedIn = true;
     showPage('register');
   } else {
     document.getElementById("login_msg").innerText = res.message;
   }
 }
 
-// -------------------- SAVE (ADD / UPDATE) STUDENT --------------------
+// -------------------- AUTH-GUARDED PAGE LOADER --------------------
+function showPage(page) {
+  if(!isLoggedIn && page !== "home" && page !== "login" && page !== "scan"){
+    alert("⚠ Login First!");
+    return showPage('login');
+  }
+  document.getElementById('content').innerHTML = pages[page];
+}
+
+// -------------------- SAVE STUDENT --------------------
 async function saveStudent(event){
   event.preventDefault();
   const form = new FormData();
@@ -136,7 +138,7 @@ async function saveStudent(event){
   document.getElementById('save_msg').innerText = data.message;
 }
 
-// -------------------- SHOW TABLE --------------------
+// -------------------- LOAD STUDENTS --------------------
 async function loadStudents(){
   const r = await fetch('/api/students');
   const students = await r.json();
@@ -152,13 +154,9 @@ async function loadStudents(){
     html += `
       <tr>
         <td>${s.student_id}</td>
-
         <td>${s.roll_no}</td>
-
         <td>${s.name}</td>
-
         <td>${s.gender}</td>
-
         <td>${s.class}</td>
         <td>${s.section}</td>
         <td>${s.dob}</td>
@@ -167,8 +165,40 @@ async function loadStudents(){
       </tr>`;
   });
 
+  html += "</table>";
   document.getElementById("table").innerHTML = html;
 }
 
-// Load home page at start
+// -------------------- DELETE FUNC --------------------
+async function deleteStudent(){
+  const roll = document.getElementById("delete_roll").value;
+  if(!roll){
+    document.getElementById("delete_msg").innerText = "⚠ Enter Roll Number";
+    return;
+  }
+
+  const form = new FormData();
+  form.append("roll_no", roll);
+
+  const r = await fetch('/api/delete_student', { method:'POST', body: form });
+  const res = await r.json();
+  document.getElementById("delete_msg").innerText = res.message;
+}
+
+// -------------------- OPENCV PROCESS --------------------
+async function processImage() {
+  const input = document.getElementById("imageInput");
+  if (!input.files.length) return alert("Select image first 😑");
+
+  const formData = new FormData();
+  formData.append("image", input.files[0]);
+
+  const r = await fetch("/api/process_image", { method:"POST", body: formData });
+  const blob = await r.blob();
+
+  document.getElementById("outputImg").src =
+     URL.createObjectURL(blob);
+}
+
+// Auto-load home
 showPage('home');
