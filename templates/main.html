@@ -15,12 +15,14 @@
     <a onclick="showPage('register')">Update DB</a>
     <a onclick="showPage('show')">Show DB</a>
     <a onclick="showPage('delete')">Delete</a>
+    <a onclick="showPage('scan')">Scan</a> <!-- NEW -->
   </nav>
 </header>
 
-<main id="content"></main>
+<main id="content">
+  <!-- Dynamic page content will load here -->
+</main>
 
 <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
-
 </html>
