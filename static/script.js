@@ -477,10 +477,30 @@ async function captureFrame() {
 
   if (res.status === "success") {
     const s = res.student;
+
+    const imgCell = s.image_path
+      ? `<img src="/static/${s.image_path}" style="max-width:80px;border-radius:6px;">`
+      : "-";
+
     resultBox.innerHTML = `
-      <p><b>Detected:</b> ${s.name || "-"} (${s.roll_no})</p>
-      <p>${s.course || ""} ${s.branch || ""}</p>
-      ${s.image_path ? `<img src="/static/${s.image_path}" style="max-width:120px;border-radius:6px;margin-top:8px;">` : ""}
+      <table>
+        <tr>
+          <th>Serial</th>
+          <th>Roll No</th>
+          <th>Name</th>
+          <th>Course</th>
+          <th>Branch</th>
+          <th>Photo</th>
+        </tr>
+        <tr>
+          <td>${s.id ?? "-"}</td>
+          <td>${s.roll_no || "-"}</td>
+          <td>${s.name || "-"}</td>
+          <td>${s.course || "-"}</td>
+          <td>${s.branch || "-"}</td>
+          <td>${imgCell}</td>
+        </tr>
+      </table>
     `;
   } else {
     resultBox.innerHTML = `<span style="color:red;">${res.message || "No match found"}</span>`;
