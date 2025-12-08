@@ -1,6 +1,7 @@
 let isLoggedIn = false;
 let isPop = false;
 let cameraStream = null;
+let navOpen = false;
 
 // ---------------- NAV ----------------
 
@@ -218,7 +219,14 @@ function showPage(page) {
 
   content.innerHTML = pages[page] || "";
   renderNav();
-
+  // close dropdown nav after navigation
+  const navEl = document.getElementById("nav");
+  const toggleBtn = document.getElementById("navToggle");
+  if (navEl && toggleBtn) {
+    navOpen = false;
+    navEl.classList.remove("nav-open");
+    toggleBtn.classList.remove("nav-open");
+  }
   // stats on home + dashboard
   if (page === "home" || page === "dashboard") {
     loadDashboardStats();
@@ -394,6 +402,21 @@ async function loadDashboardStats() {
     if (heroEl) heroEl.textContent = `${total} students`;
   } catch (err) {
     console.error(err);
+  }
+}
+function toggleNav() {
+  const nav = document.getElementById("nav");
+  const btn = document.getElementById("navToggle");
+  if (!nav || !btn) return;
+
+  navOpen = !navOpen;
+
+  if (navOpen) {
+    nav.classList.add("nav-open");
+    btn.classList.add("nav-open");
+  } else {
+    nav.classList.remove("nav-open");
+    btn.classList.remove("nav-open");
   }
 }
 // ---------------- SCAN (UPLOAD) ----------------
