@@ -1,4 +1,8 @@
 let isLoggedIn = false;
+let isPop = false;
+let cameraStream = null;
+
+// ---------------- NAV ----------------
 
 function renderNav() {
   const nav = document.getElementById("nav");
@@ -13,13 +17,15 @@ function renderNav() {
   } else {
     nav.innerHTML = `
       <a onclick="showPage('dashboard')">Dashboard</a>
-      <a onclick="showPage('scan')">Scan</a>
+      <a onclick="showPage('scan')">Scan (Upload)</a>
       <a onclick="showPage('scan_live')">Live Scan</a>
       <a onclick="showPage('manage')">Manage DB</a>
       <a onclick="logout()">Logout</a>
     `;
   }
 }
+
+// ---------------- PAGES ----------------
 
 const pages = {
 
@@ -60,7 +66,8 @@ const pages = {
       <h2>FRASS Dashboard</h2>
       <p>Choose what you want to do:</p>
       <div class="grid">
-        <button class="btn big" onclick="showPage('scan')">Scan Student</button>
+        <button class="btn big" onclick="showPage('scan')">Scan (Upload)</button>
+        <button class="btn big" onclick="showPage('scan_live')">Live Scan</button>
         <button class="btn big" onclick="showPage('manage')">Manage Database</button>
       </div>
     </div>
@@ -87,8 +94,6 @@ const pages = {
     <div class="card" style="max-width:600px;margin:auto;">
       <h2>Add / Update Student</h2>
       <form onsubmit="saveStudent(event)">
-        <input id="student_id" type="hidden">
-
         <input id="roll_no" placeholder="Roll Number" required>
         <input id="name" placeholder="Name">
         <input id="course" placeholder="Course">
@@ -122,7 +127,7 @@ const pages = {
 
   scan: `
     <div class="card" style="max-width:400px;margin:auto;">
-      <h2>Scan Student Face</h2>
+      <h2>Scan Student Face (Upload)</h2>
       <input type="file" id="imageInput" accept="image/*">
       <button class="btn btn-primary" onclick="processImage()">Scan & Match</button>
 
@@ -132,48 +137,62 @@ const pages = {
       <h3 style="margin-top:16px;">Matched Student</h3>
       <div id="scanResult"></div>
     </div>
-  `
+  `,
+
   scan_live: `
-  <div class="card" style="max-width:500px;margin:auto;text-align:center;">
-    <h2>Live Scan</h2>
+    <div class="card" style="max-width:500px;margin:auto;text-align:center;">
+      <h2>Live Scan</h2>
 
-    <video id="cameraFeed" autoplay playsinline style="width:100%;border-radius:8px;"></video>
+      <video id="cameraFeed" autoplay playsinline style="width:100%;border-radius:8px;background:#000;"></video>
 
-    <button class="btn btn-primary" style="margin-top:12px;" onclick="captureFrame()">
-      Scan Face
-    </button>
+      <button class="btn btn-primary" style="margin-top:12px;" onclick="captureFrame()">
+        Scan Face
+      </button>
 
-    <div id="scanResult" style="margin-top:16px;"></div>
-  </div>
-`
+      <div id="scanResult" style="margin-top:16px;"></div>
+    </div>
+  `
 };
 
-let isPop = false;
+// ---------------- PAGE LOADER + HISTORY ----------------
 
 function showPage(page) {
-  document.getElementById('content').innerHTML = pages[page];
+  const publicPages = ["home", "login", "signup"];
+  const content = document.getElementById("content");
+  if (!content) return;
 
+  if (!isLoggedIn && !publicPages.includes(page)) {
+    page = "login";
+  }
+
+  content.innerHTML = pages[page] || "";
+  renderNav();
+
+  // start / stop camera depending on page
   if (page === "scan_live") {
     startCamera();
+  } else {
+    stopCamera();
   }
-}
-  // Only push into history when navigation is user-triggered
+
+  // push into history only for user-triggered nav
   if (!isPop) {
     history.pushState({ page }, "", "#" + page);
   }
-  
   isPop = false;
 }
 
-window.onpopstate = function(event) {
+window.onpopstate = function (event) {
   if (event.state && event.state.page) {
     isPop = true;
     showPage(event.state.page);
+  } else {
+    isPop = true;
+    showPage("home");
   }
 };
 
-
-// ---------- AUTH ---------- //
+// ---------------- AUTH ----------------
 
 async function signup() {
   const email = document.getElementById("signup_email").value.trim();
@@ -228,21 +247,20 @@ async function login() {
 async function logout() {
   await fetch("/api/logout", { method: "POST" });
   isLoggedIn = false;
+  stopCamera();
   showPage("home");
 }
 
-
-// ---------- STUDENT CRUD ---------- //
+// ---------------- STUDENT CRUD ----------------
 
 async function saveStudent(event) {
   event.preventDefault();
 
   const form = new FormData();
-  form.append("id", document.getElementById("student_id").value);
-  form.append("roll_no", document.getElementById("roll_no").value);
-  form.append("name", document.getElementById("name").value);
-  form.append("course", document.getElementById("course").value);
-  form.append("branch", document.getElementById("branch").value);
+  form.append("roll_no", document.getElementById("roll_no").value.trim());
+  form.append("name", document.getElementById("name").value.trim());
+  form.append("course", document.getElementById("course").value.trim());
+  form.append("branch", document.getElementById("branch").value.trim());
 
   const photoInput = document.getElementById("photo");
   if (photoInput && photoInput.files.length) {
@@ -273,14 +291,16 @@ async function loadStudents() {
   `;
 
   students.forEach(s => {
-    const imgTag = s.image_path ? `<img src="/static/${s.image_path}" style="max-width:60px;">` : "-";
+    const imgTag = s.image_path
+      ? `<img src="/static/${s.image_path}" style="max-width:60px;">`
+      : "-";
     html += `
       <tr>
         <td>${s.id}</td>
         <td>${s.roll_no}</td>
-        <td>${s.name}</td>
-        <td>${s.course}</td>
-        <td>${s.branch}</td>
+        <td>${s.name || "-"}</td>
+        <td>${s.course || "-"}</td>
+        <td>${s.branch || "-"}</td>
         <td>${imgTag}</td>
       </tr>
     `;
@@ -307,8 +327,7 @@ async function deleteStudent() {
   msg.innerText = res.message;
 }
 
-
-// ---------- OPENCV PROCESS ---------- //
+// ---------------- SCAN (UPLOAD) ----------------
 
 async function processImage() {
   const input = document.getElementById("imageInput");
@@ -321,7 +340,6 @@ async function processImage() {
     return;
   }
 
-  // Show preview of uploaded image
   const file = input.files[0];
   preview.src = URL.createObjectURL(file);
   preview.style.display = "block";
@@ -329,37 +347,33 @@ async function processImage() {
   const formData = new FormData();
   formData.append("image", file);
 
-  try {
-    const r = await fetch("/api/scan_face", {
-      method: "POST",
-      body: formData
-    });
+  resultBox.innerHTML = "⏳ Scanning...";
 
-    const data = await r.json();
+  const r = await fetch("/api/scan_face", {
+    method: "POST",
+    body: formData
+  });
+  const data = await r.json();
 
-    if (data.status === "success") {
-      const s = data.student;
-      const photoHtml = s.image_path
-        ? `<img src="/static/${s.image_path}" style="max-width:120px;display:block;margin-top:8px;">`
-        : "";
+  if (data.status === "success") {
+    const s = data.student;
+    const photoHtml = s.image_path
+      ? `<img src="/static/${s.image_path}" style="max-width:120px;display:block;margin-top:8px;">`
+      : "";
 
-      resultBox.innerHTML = `
-        <p><b>Roll:</b> ${s.roll_no}</p>
-        <p><b>Name:</b> ${s.name || "-"}</p>
-        <p><b>Course:</b> ${s.course || "-"}</p>
-        <p><b>Branch:</b> ${s.branch || "-"}</p>
-        ${photoHtml}
-      `;
-    } else {
-      resultBox.innerHTML = `<p class="msg-error">${data.message || "No match found"}</p>`;
-    }
-  } catch (err) {
-    console.error(err);
-    resultBox.innerHTML = `<p class="msg-error">Error while scanning</p>`;
+    resultBox.innerHTML = `
+      <p><b>Roll:</b> ${s.roll_no}</p>
+      <p><b>Name:</b> ${s.name || "-"}</p>
+      <p><b>Course:</b> ${s.course || "-"}</p>
+      <p><b>Branch:</b> ${s.branch || "-"}</p>
+      ${photoHtml}
+    `;
+  } else {
+    resultBox.innerHTML = `<p class="msg-error">${data.message || "No match found"}</p>`;
   }
 }
 
-let cameraStream = null;
+// ---------------- LIVE SCAN (CAMERA) ----------------
 
 async function startCamera() {
   const video = document.getElementById("cameraFeed");
@@ -374,20 +388,35 @@ async function startCamera() {
   }
 }
 
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+  const video = document.getElementById("cameraFeed");
+  if (video) {
+    video.srcObject = null;
+  }
+}
+
 async function captureFrame() {
   const video = document.getElementById("cameraFeed");
   const resultBox = document.getElementById("scanResult");
 
-  if (!video) return;
+  if (!video || !video.videoWidth) {
+    resultBox.innerHTML = `<span style="color:red;">Camera not ready</span>`;
+    return;
+  }
 
-  // Freeze frame into canvas
   const canvas = document.createElement("canvas");
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
   const ctx = canvas.getContext("2d");
   ctx.drawImage(video, 0, 0);
 
-  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+  const blob = await new Promise(resolve =>
+    canvas.toBlob(resolve, "image/png")
+  );
   const formData = new FormData();
   formData.append("image", blob, "frame.png");
 
@@ -404,10 +433,11 @@ async function captureFrame() {
       ${s.image_path ? `<img src="/static/${s.image_path}" style="max-width:120px;border-radius:6px;margin-top:8px;">` : ""}
     `;
   } else {
-    resultBox.innerHTML = `<span style="color:red;">${res.message}</span>`;
+    resultBox.innerHTML = `<span style="color:red;">${res.message || "No match found"}</span>`;
   }
-    }
+}
 
-// start app
+// ---------------- INIT ----------------
+
 showPage("home");
 renderNav();
