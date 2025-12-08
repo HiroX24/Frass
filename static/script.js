@@ -96,7 +96,26 @@ const pages = {
   dashboard: `
     <div class="card">
       <h2>FRASS Dashboard</h2>
-      <p>Choose what you want to do:</p>
+      <p class="hero-subtitle" style="margin-bottom:12px;">
+        Quick overview of your student database and tools.
+      </p>
+
+      <div class="dash-grid">
+        <div class="stat-card">
+          <span class="stat-label">Total Students</span>
+          <span class="stat-value" id="stat_total_students">—</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Face Scan</span>
+          <span class="stat-value">Ready</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Database</span>
+          <span class="stat-value">Online</span>
+        </div>
+      </div>
+
+      <h3 class="section-title">Quick Actions</h3>
       <div class="grid">
         <button class="btn big" onclick="showPage('scan')">Scan (Upload)</button>
         <button class="btn big" onclick="showPage('scan_live')">Live Scan</button>
