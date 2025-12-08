@@ -479,28 +479,30 @@ async function captureFrame() {
     const s = res.student;
 
     const imgCell = s.image_path
-      ? `<img src="/static/${s.image_path}" style="max-width:80px;border-radius:6px;">`
+      ? `<img src="/static/${s.image_path}" alt="Student photo">`
       : "-";
 
     resultBox.innerHTML = `
-      <table>
-        <tr>
-          <th>Serial</th>
-          <th>Roll No</th>
-          <th>Name</th>
-          <th>Course</th>
-          <th>Branch</th>
-          <th>Photo</th>
-        </tr>
-        <tr>
-          <td>${s.id ?? "-"}</td>
-          <td>${s.roll_no || "-"}</td>
-          <td>${s.name || "-"}</td>
-          <td>${s.course || "-"}</td>
-          <td>${s.branch || "-"}</td>
-          <td>${imgCell}</td>
-        </tr>
-      </table>
+      <div class="table-wrapper">
+        <table>
+          <tr>
+            <th>Serial</th>
+            <th>Roll No</th>
+            <th>Name</th>
+            <th>Course</th>
+            <th>Branch</th>
+            <th>Photo</th>
+          </tr>
+          <tr>
+            <td>${s.id ?? "-"}</td>
+            <td>${s.roll_no || "-"}</td>
+            <td>${s.name || "-"}</td>
+            <td>${s.course || "-"}</td>
+            <td>${s.branch || "-"}</td>
+            <td>${imgCell}</td>
+          </tr>
+        </table>
+      </div>
     `;
   } else {
     resultBox.innerHTML = `<span style="color:red;">${res.message || "No match found"}</span>`;
