@@ -219,7 +219,8 @@ function showPage(page) {
 
   content.innerHTML = pages[page] || "";
   renderNav();
-  // close dropdown nav after navigation
+
+  // close menu after nav
   const navEl = document.getElementById("nav");
   const toggleBtn = document.getElementById("navToggle");
   if (navEl && toggleBtn) {
@@ -227,12 +228,11 @@ function showPage(page) {
     navEl.classList.remove("nav-open");
     toggleBtn.classList.remove("nav-open");
   }
-  // stats on home + dashboard
-  if (page === "home" || page === "dashboard") {
-    loadDashboardStats();
-  }
 
-  // camera handling
+  // your existing stuff: stats, camera, history, etc
+  if (page === "home" || page === "dashboard") {
+    loadDashboardStats?.();
+  }
   if (page === "scan_live") {
     startCamera();
   } else {
