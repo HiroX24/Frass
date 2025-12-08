@@ -89,9 +89,9 @@ const pages = {
         <input id="student_id" type="hidden">
 
         <input id="roll_no" placeholder="Roll Number" required>
-        <input id="name" placeholder="Name" required>
-        <input id="course" placeholder="Course" required>
-        <input id="branch" placeholder="Branch" required>
+        <input id="name" placeholder="Name">
+        <input id="course" placeholder="Course">
+        <input id="branch" placeholder="Branch">
 
         <label style="margin-top:10px;display:block;">Student Photo (optional)</label>
         <input id="photo" type="file" accept="image/*">
