@@ -14,6 +14,7 @@ function renderNav() {
     nav.innerHTML = `
       <a onclick="showPage('dashboard')">Dashboard</a>
       <a onclick="showPage('scan')">Scan</a>
+      <a onclick="showPage('scan_live')">Live Scan</a>
       <a onclick="showPage('manage')">Manage DB</a>
       <a onclick="logout()">Logout</a>
     `;
@@ -132,20 +133,30 @@ const pages = {
       <div id="scanResult"></div>
     </div>
   `
+  scan_live: `
+  <div class="card" style="max-width:500px;margin:auto;text-align:center;">
+    <h2>Live Scan</h2>
+
+    <video id="cameraFeed" autoplay playsinline style="width:100%;border-radius:8px;"></video>
+
+    <button class="btn btn-primary" style="margin-top:12px;" onclick="captureFrame()">
+      Scan Face
+    </button>
+
+    <div id="scanResult" style="margin-top:16px;"></div>
+  </div>
+`
 };
 
 let isPop = false;
 
 function showPage(page) {
-  const publicPages = ["home", "login", "signup"];
-  
-  if (!isLoggedIn && !publicPages.includes(page)) {
-    page = "login";
+  document.getElementById('content').innerHTML = pages[page];
+
+  if (page === "scan_live") {
+    startCamera();
   }
-
-  document.getElementById("content").innerHTML = pages[page];
-  renderNav();
-
+}
   // Only push into history when navigation is user-triggered
   if (!isPop) {
     history.pushState({ page }, "", "#" + page);
@@ -348,6 +359,54 @@ async function processImage() {
   }
 }
 
+let cameraStream = null;
+
+async function startCamera() {
+  const video = document.getElementById("cameraFeed");
+  if (!video) return;
+
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = cameraStream;
+  } catch (err) {
+    alert("Camera access denied or unavailable");
+    console.error(err);
+  }
+}
+
+async function captureFrame() {
+  const video = document.getElementById("cameraFeed");
+  const resultBox = document.getElementById("scanResult");
+
+  if (!video) return;
+
+  // Freeze frame into canvas
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(video, 0, 0);
+
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+  const formData = new FormData();
+  formData.append("image", blob, "frame.png");
+
+  resultBox.innerHTML = "⏳ Scanning...";
+
+  const r = await fetch("/api/scan_face", { method: "POST", body: formData });
+  const res = await r.json();
+
+  if (res.status === "success") {
+    const s = res.student;
+    resultBox.innerHTML = `
+      <p><b>Detected:</b> ${s.name || "-"} (${s.roll_no})</p>
+      <p>${s.course || ""} ${s.branch || ""}</p>
+      ${s.image_path ? `<img src="/static/${s.image_path}" style="max-width:120px;border-radius:6px;margin-top:8px;">` : ""}
+    `;
+  } else {
+    resultBox.innerHTML = `<span style="color:red;">${res.message}</span>`;
+  }
+    }
 
 // start app
 showPage("home");
