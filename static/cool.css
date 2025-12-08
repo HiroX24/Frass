@@ -223,3 +223,75 @@ img {
 nav a:active {
   transform: translateY(1px) scale(0.97);
     }
+/* ------------ Responsive Rules ------------ */
+
+/* Mobile (landscape & below) */
+@media (max-width: 900px) {
+  main {
+    padding: 20px 10px;
+    width: 100%;
+  }
+
+  header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  nav {
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  nav a {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+
+  .stats {
+    flex-direction: column;
+  }
+
+  .card {
+    padding: 16px;
+    width: 100%;
+  }
+
+  table {
+    font-size: 0.75rem;
+  }
+
+  th,
+  td {
+    padding: 5px;
+  }
+
+  img {
+    max-width: 90%;
+  }
+
+  /* Buttons take full width for mobile friendliness */
+  .btn {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .grid {
+    width: 100%;
+    flex-direction: column;
+  }
+}
+
+/* Tiny screens */
+@media (max-width: 480px) {
+  nav a {
+    font-size: 0.8rem;
+    padding: 6px 10px;
+  }
+
+  .btn.big {
+    font-size: 0.9rem;
+    padding: 12px;
+  }
+  }
