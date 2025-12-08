@@ -30,12 +30,44 @@ function renderNav() {
 const pages = {
 
   home: `
+    <div class="card hero">
+      <div>
+        <div class="pill">Face Recognition · Smart Attendance</div>
+        <h1 class="hero-title">FRASS – Fast, Reliable Attendance for Students</h1>
+        <p class="hero-subtitle">
+          Scan a face, fetch the record, and update your database in seconds.
+          Built for labs, exams and classroom demos.
+        </p>
+        <div class="hero-actions">
+          <button class="btn btn-primary" onclick="showPage('login')">Login to Dashboard</button>
+          <button class="btn btn-outline" onclick="showPage('signup')">Create Admin Account</button>
+        </div>
+      </div>
+      <div class="hero-side">
+        <p class="hero-metric">System Snapshot</p>
+        <p class="hero-value" id="hero_student_count">— students</p>
+        <p style="font-size:0.8rem;margin-top:8px;opacity:0.9;">
+          Live face matching, PostgreSQL cloud database and mobile-first UI –
+          all running directly from your browser.
+        </p>
+      </div>
+    </div>
+
     <div class="card">
-      <h1>Welcome to <span style="color:#2563eb">FRASS</span></h1>
-      <p>Smart Student Record & Attendance System</p>
-      <div style="margin-top:20px;">
-        <button class="btn btn-primary" onclick="showPage('login')">Login</button>
-        <button class="btn btn-outline" onclick="showPage('signup')">Sign Up</button>
+      <h3 class="section-title">Why FRASS?</h3>
+      <div class="grid">
+        <div class="stat-card">
+          <span class="stat-label">Face-based Identification</span>
+          <span class="stat-value" style="font-size:1rem;">Scan & match against stored photos</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Cloud Database</span>
+          <span class="stat-value" style="font-size:1rem;">PostgreSQL – persistent & secure</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Admin Tools</span>
+          <span class="stat-value" style="font-size:1rem;">Add, update & delete student records</span>
+        </div>
       </div>
     </div>
   `,
@@ -168,14 +200,18 @@ function showPage(page) {
   content.innerHTML = pages[page] || "";
   renderNav();
 
-  // start / stop camera depending on page
+  // stats on home + dashboard
+  if (page === "home" || page === "dashboard") {
+    loadDashboardStats();
+  }
+
+  // camera handling
   if (page === "scan_live") {
     startCamera();
   } else {
     stopCamera();
   }
 
-  // push into history only for user-triggered nav
   if (!isPop) {
     history.pushState({ page }, "", "#" + page);
   }
@@ -327,6 +363,20 @@ async function deleteStudent() {
   msg.innerText = res.message;
 }
 
+async function loadDashboardStats() {
+  try {
+    const r = await fetch("/api/students");
+    const students = await r.json();
+    const total = Array.isArray(students) ? students.length : 0;
+
+    const statEl = document.getElementById("stat_total_students");
+    const heroEl = document.getElementById("hero_student_count");
+    if (statEl) statEl.textContent = total;
+    if (heroEl) heroEl.textContent = `${total} students`;
+  } catch (err) {
+    console.error(err);
+  }
+}
 // ---------------- SCAN (UPLOAD) ----------------
 
 async function processImage() {
