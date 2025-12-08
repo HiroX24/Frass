@@ -1,64 +1,107 @@
-let isLoggedIn = false; // Track login status on frontend
+let isLoggedIn = false;
+
+function renderNav() {
+  const nav = document.getElementById("nav");
+  if (!nav) return;
+
+  if (!isLoggedIn) {
+    nav.innerHTML = `
+      <a onclick="showPage('home')">Home</a>
+      <a onclick="showPage('login')">Login</a>
+      <a onclick="showPage('signup')">Sign Up</a>
+    `;
+  } else {
+    nav.innerHTML = `
+      <a onclick="showPage('dashboard')">Dashboard</a>
+      <a onclick="showPage('scan')">Scan</a>
+      <a onclick="showPage('manage')">Manage DB</a>
+      <a onclick="logout()">Logout</a>
+    `;
+  }
+}
 
 const pages = {
 
-  // -------------------- HOME --------------------
   home: `
     <div class="card">
       <h1>Welcome to <span style="color:#2563eb">FRASS</span></h1>
       <p>Smart Student Record & Attendance System</p>
       <div style="margin-top:20px;">
         <button class="btn btn-primary" onclick="showPage('login')">Login</button>
+        <button class="btn btn-outline" onclick="showPage('signup')">Sign Up</button>
       </div>
-    </div>
-
-    <div class="stats" style="margin-top:30px;">
-      <div class="card"><h3>⚡ Fast</h3><p>Quick access to records</p></div>
-      <div class="card"><h3>🔒 Secure</h3><p>Data protection</p></div>
-      <div class="card"><h3>🤖 Automated</h3><p>Streamlined processes</p></div>
     </div>
   `,
 
-  // -------------------- LOGIN PAGE --------------------
   login: `
     <div class="card" style="max-width:400px;margin:auto;">
       <h2>Login</h2>
       <input id="login_email" type="email" placeholder="Email" required>
-      <input id="login_password" type="password" placeholder="Password" required minlength="8">
+      <input id="login_password" type="password" placeholder="Password" required>
       <button onclick="login()" class="btn btn-primary">Login</button>
-      <p id="login_msg" style="color:red;"></p>
+      <p id="login_msg" class="msg-error"></p>
+      <p style="margin-top:10px;">No account? <a href="javascript:void(0)" onclick="showPage('signup')">Sign up</a></p>
     </div>
   `,
 
-  // -------------------- REGISTER / UPDATE STUDENT --------------------
-  register: (`
+  signup: `
+    <div class="card" style="max-width:400px;margin:auto;">
+      <h2>Sign Up</h2>
+      <input id="signup_email" type="email" placeholder="Email" required>
+      <input id="signup_password" type="password" placeholder="Password" required>
+      <button onclick="signup()" class="btn btn-primary">Create Account</button>
+      <p id="signup_msg" class="msg-error"></p>
+    </div>
+  `,
+
+  dashboard: `
+    <div class="card">
+      <h2>FRASS Dashboard</h2>
+      <p>Choose what you want to do:</p>
+      <div class="grid">
+        <button class="btn big" onclick="showPage('scan')">Scan Student</button>
+        <button class="btn big" onclick="showPage('manage')">Manage Database</button>
+      </div>
+    </div>
+  `,
+
+  manage: `
+    <div class="card">
+      <h2>Manage Database</h2>
+
+      <label>Choose database:</label>
+      <select id="db_select" disabled>
+        <option value="students">Students</option>
+      </select>
+
+      <div class="grid" style="margin-top:20px;">
+        <button class="btn" onclick="showPage('register')">Add / Update</button>
+        <button class="btn" onclick="showPage('show')">Show Records</button>
+        <button class="btn" onclick="showPage('delete')">Delete Record</button>
+      </div>
+    </div>
+  `,
+
+  register: `
     <div class="card" style="max-width:600px;margin:auto;">
       <h2>Add / Update Student</h2>
       <form onsubmit="saveStudent(event)">
-        <input id="student_id" placeholder="Student ID" required>
-        <input id="roll_no" placeholder="Roll No" required>
+        <input id="student_id" type="hidden">
+
+        <input id="roll_no" placeholder="Roll Number" required>
         <input id="name" placeholder="Name" required>
+        <input id="course" placeholder="Course" required>
+        <input id="branch" placeholder="Branch" required>
 
-        <select id="gender" required>
-          <option value="" disabled selected>Select Gender</option>
-          <option value="Male">Male</option>
-          <option value="Female">Female</option>
-          <option value="Other">Other</option>
-        </select>
-
-        <input id="dob" type="date" required>
-        <input id="contact_no" placeholder="Contact No" required>
-        <input id="email" type="email" placeholder="Email" required>
-        <input id="class" placeholder="Class" required>
-        <input id="section" placeholder="Section" required>
+        <label style="margin-top:10px;display:block;">Student Photo (optional)</label>
+        <input id="photo" type="file" accept="image/*">
 
         <button class="btn btn-primary" type="submit">Save</button>
       </form>
-      <p id="save_msg" style="color:green;"></p>
+      <p id="save_msg" class="msg-info"></p>
     </div>
-  `),
+  `,
 
-  // -------------------- SHOW DB --------------------
   show: `
     <div class="card">
       <h2>Student Database</h2>
@@ -67,17 +110,15 @@ const pages = {
     </div>
   `,
 
-  // -------------------- DELETE STUDENT --------------------
   delete: `
     <div class="card" style="max-width:400px;margin:auto;">
       <h2>Delete Student</h2>
       <input id="delete_roll" type="text" placeholder="Enter Roll Number" style="width:100%;padding:10px;margin:10px 0;">
       <button class="btn btn-primary" onclick="deleteStudent()">Delete</button>
-      <p id="delete_msg" style="color:red;margin-top:10px;"></p>
+      <p id="delete_msg" class="msg-error"></p>
     </div>
   `,
 
-  // -------------------- SCAN (OpenCV) --------------------
   scan: `
     <div class="card" style="max-width:400px;margin:auto;">
       <h2>Upload Photo for Scan</h2>
@@ -85,120 +126,174 @@ const pages = {
       <button class="btn btn-primary" onclick="processImage()">Process</button>
       <h3>Result:</h3>
       <img id="outputImg" style="max-width:300px;">
+      <p class="msg-info">Later, this will also fetch student data using face_id.</p>
     </div>
   `
 };
 
-// -------------------- LOGIN FUNC --------------------
-async function login(){
-  const email = document.getElementById("login_email").value;
-  const pass = document.getElementById("login_password").value;
-
-  if(!email.includes("@") || !email.includes(".")){
-    return document.getElementById("login_msg").innerText = "Invalid email format 🫠";
+function showPage(page) {
+  const publicPages = ["home", "login", "signup"];
+  if (!isLoggedIn && !publicPages.includes(page)) {
+    page = "login";
   }
-  if(pass.length < 8){
-    return document.getElementById("login_msg").innerText = "Password must be 8+ characters 😒";
+  document.getElementById("content").innerHTML = pages[page];
+  renderNav();
+}
+
+
+// ---------- AUTH ---------- //
+
+async function signup() {
+  const email = document.getElementById("signup_email").value.trim();
+  const pass = document.getElementById("signup_password").value.trim();
+  const msg = document.getElementById("signup_msg");
+  msg.innerText = "";
+
+  if (!email.includes("@") || !email.includes(".")) {
+    msg.innerText = "Invalid email format";
+    return;
+  }
+  if (pass.length < 4) {
+    msg.innerText = "Password must be at least 4 characters";
+    return;
   }
 
   const form = new FormData();
   form.append("email", email);
   form.append("password", pass);
 
-  const r = await fetch('/api/login', { method:'POST', body:form });
+  const r = await fetch("/api/signup", { method: "POST", body: form });
   const res = await r.json();
-
-  if(res.status === "success"){
-    isLoggedIn = true;
-    showPage('register');
+  if (res.status === "success") {
+    msg.style.color = "green";
+    msg.innerText = "Account created. You can log in now.";
   } else {
-    document.getElementById("login_msg").innerText = res.message;
+    msg.style.color = "red";
+    msg.innerText = res.message;
   }
 }
 
-// -------------------- AUTH-GUARDED PAGE LOADER --------------------
-function showPage(page) {
-  if(!isLoggedIn && page !== "home" && page !== "login" && page !== "scan"){
-    alert("⚠ Login First!");
-    return showPage('login');
-  }
-  document.getElementById('content').innerHTML = pages[page];
-}
+async function login() {
+  const email = document.getElementById("login_email").value.trim();
+  const pass = document.getElementById("login_password").value.trim();
+  const msg = document.getElementById("login_msg");
+  msg.innerText = "";
 
-// -------------------- SAVE STUDENT --------------------
-async function saveStudent(event){
-  event.preventDefault();
   const form = new FormData();
+  form.append("email", email);
+  form.append("password", pass);
 
-  ["student_id","roll_no","name","gender","dob","contact_no","email","class","section"]
-    .forEach(id => form.append(id, document.getElementById(id).value));
-
-  const r = await fetch('/api/save_student', { method:'POST', body:form });
-  const data = await r.json();
-  document.getElementById('save_msg').innerText = data.message;
+  const r = await fetch("/api/login", { method: "POST", body: form });
+  const res = await r.json();
+  if (res.status === "success") {
+    isLoggedIn = true;
+    showPage("dashboard");
+  } else {
+    msg.innerText = res.message;
+  }
 }
 
-// -------------------- LOAD STUDENTS --------------------
-async function loadStudents(){
-  const r = await fetch('/api/students');
+async function logout() {
+  await fetch("/api/logout", { method: "POST" });
+  isLoggedIn = false;
+  showPage("home");
+}
+
+
+// ---------- STUDENT CRUD ---------- //
+
+async function saveStudent(event) {
+  event.preventDefault();
+
+  const form = new FormData();
+  form.append("id", document.getElementById("student_id").value);
+  form.append("roll_no", document.getElementById("roll_no").value);
+  form.append("name", document.getElementById("name").value);
+  form.append("course", document.getElementById("course").value);
+  form.append("branch", document.getElementById("branch").value);
+
+  const photoInput = document.getElementById("photo");
+  if (photoInput && photoInput.files.length) {
+    form.append("photo", photoInput.files[0]);
+  }
+
+  const r = await fetch("/api/save_student", { method: "POST", body: form });
+  const res = await r.json();
+  const msg = document.getElementById("save_msg");
+  msg.style.color = res.status === "success" ? "green" : "red";
+  msg.innerText = res.message;
+}
+
+async function loadStudents() {
+  const r = await fetch("/api/students");
   const students = await r.json();
 
   let html = `
     <table border="1" cellspacing="0" cellpadding="8">
       <tr>
-        <th>Student ID</th><th>Roll No</th><th>Name</th><th>Gender</th><th>Class</th><th>Section</th><th>D.O.B</th><th>Contact</th><th>Email</th>
+        <th>Serial</th>
+        <th>Roll No</th>
+        <th>Name</th>
+        <th>Course</th>
+        <th>Branch</th>
+        <th>Photo</th>
       </tr>
   `;
 
   students.forEach(s => {
+    const imgTag = s.image_path ? `<img src="/static/${s.image_path}" style="max-width:60px;">` : "-";
     html += `
       <tr>
-        <td>${s.student_id}</td>
+        <td>${s.id}</td>
         <td>${s.roll_no}</td>
         <td>${s.name}</td>
-        <td>${s.gender}</td>
-        <td>${s.class}</td>
-        <td>${s.section}</td>
-        <td>${s.dob}</td>
-        <td>${s.contact_no}</td>
-        <td>${s.email}</td>
-      </tr>`;
+        <td>${s.course}</td>
+        <td>${s.branch}</td>
+        <td>${imgTag}</td>
+      </tr>
+    `;
   });
 
   html += "</table>";
   document.getElementById("table").innerHTML = html;
 }
 
-// -------------------- DELETE FUNC --------------------
-async function deleteStudent(){
-  const roll = document.getElementById("delete_roll").value;
-  if(!roll){
-    document.getElementById("delete_msg").innerText = "⚠ Enter Roll Number";
+async function deleteStudent() {
+  const roll = document.getElementById("delete_roll").value.trim();
+  const msg = document.getElementById("delete_msg");
+  if (!roll) {
+    msg.innerText = "Enter Roll Number";
     return;
   }
 
   const form = new FormData();
   form.append("roll_no", roll);
 
-  const r = await fetch('/api/delete_student', { method:'POST', body: form });
+  const r = await fetch("/api/delete_student", { method: "POST", body: form });
   const res = await r.json();
-  document.getElementById("delete_msg").innerText = res.message;
+  msg.style.color = res.status === "success" ? "green" : "red";
+  msg.innerText = res.message;
 }
 
-// -------------------- OPENCV PROCESS --------------------
+
+// ---------- OPENCV PROCESS ---------- //
+
 async function processImage() {
   const input = document.getElementById("imageInput");
-  if (!input.files.length) return alert("Select image first 😑");
+  if (!input.files.length) {
+    alert("Select an image first");
+    return;
+  }
 
   const formData = new FormData();
   formData.append("image", input.files[0]);
 
-  const r = await fetch("/api/process_image", { method:"POST", body: formData });
+  const r = await fetch("/api/process_image", { method: "POST", body: formData });
   const blob = await r.blob();
-
-  document.getElementById("outputImg").src =
-     URL.createObjectURL(blob);
+  document.getElementById("outputImg").src = URL.createObjectURL(blob);
 }
 
-// Auto-load home
-showPage('home');
+
+// start app
+showPage("home");
+renderNav();
