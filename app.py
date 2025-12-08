@@ -11,7 +11,11 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads")
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+UPLOAD_DIR = os.path.join(STATIC_DIR, "uploads")
+
+CASCADE_PATH = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+face_cascade = cv2.CascadeClassifier(CASCADE_PATH)
 
 app = Flask(__name__)
 app.secret_key = "FRASS_SECRET_KEY_CHANGE_ME"   # for sessions
