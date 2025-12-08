@@ -81,7 +81,31 @@ def init_db():
     conn.commit()
     conn.close()
 
+def extract_face_vector(image_bgr):
+    """
+    Detects the largest face in the image, converts to grayscale,
+    resizes, flattens and normalizes to a 1D vector.
+    """
+    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    faces = face_cascade.detectMultiScale(
+        gray,
+        scaleFactor=1.2,
+        minNeighbors=5,
+        minSize=(60, 60)
+    )
 
+    if len(faces) == 0:
+        return None
+
+    # pick largest face
+    x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
+    face = gray[y:y + h, x:x + w]
+    face_resized = cv2.resize(face, (80, 80))
+
+    vec = face_resized.flatten().astype("float32")
+    norm = np.linalg.norm(vec) + 1e-6
+    return vec / norm
+    
 def setup():
     init_db()
 
@@ -286,29 +310,67 @@ def student_by_face(face_id):
     return jsonify({"status": "error", "message": "No student found"}), 404
 
 
-# ---------- OPENCV DEMO ROUTE ---------- #
+# ---------- OPENCV ROUTE ---------- #
 
-@app.route("/api/process_image", methods=["POST"])
-def process_image():
+@app.route("/api/scan_face", methods=["POST"])
+def scan_face():
     file = request.files.get("image")
     if not file:
-        return "No file uploaded", 400
+        return jsonify({"status": "error", "message": "No file uploaded"}), 400
 
     file_bytes = np.frombuffer(file.read(), np.uint8)
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     if img is None:
-        return "Invalid image", 400
+        return jsonify({"status": "error", "message": "Invalid image"}), 400
 
-    # demo: grayscale
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    ok, buffer = cv2.imencode(".png", gray)
-    if not ok:
-        return "Processing error", 500
+    target_vec = extract_face_vector(img)
+    if target_vec is None:
+        return jsonify({"status": "error", "message": "No face detected in image"}), 400
 
-    io_buf = BytesIO(buffer.tobytes())
-    return send_file(io_buf, mimetype="image/png")
+    # get all students that have a saved photo
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM students WHERE image_path IS NOT NULL")
+    students = cur.fetchall()
+    conn.close()
 
+    best_student = None
+    best_dist = None
 
+    for s in students:
+        img_rel_path = s.get("image_path")
+        if not img_rel_path:
+            continue
+
+        full_path = os.path.join(STATIC_DIR, img_rel_path)
+        if not os.path.exists(full_path):
+            continue
+
+        ref_img = cv2.imread(full_path)
+        if ref_img is None:
+            continue
+
+        ref_vec = extract_face_vector(ref_img)
+        if ref_vec is None:
+            continue
+
+        dist = float(np.linalg.norm(target_vec - ref_vec))
+
+        if best_dist is None or dist < best_dist:
+            best_dist = dist
+            best_student = s
+
+    # threshold: tweak if it misbehaves
+    THRESHOLD = 0.75
+
+    if best_student is None or best_dist is None or best_dist > THRESHOLD:
+        return jsonify({"status": "error", "message": "No matching student found"})
+
+    return jsonify({
+        "status": "success",
+        "student": best_student,
+        "score": best_dist
+    })
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
