@@ -161,62 +161,80 @@ def get_students():
 
 
 @app.route("/api/save_student", methods=["POST"])
+
+@app.route("/api/save_student", methods=["POST"])
 def save_student():
-    sid = request.form.get("id")  # may be empty
     roll_no = request.form.get("roll_no", "").strip()
     name = request.form.get("name", "").strip()
     course = request.form.get("course", "").strip()
     branch = request.form.get("branch", "").strip()
 
-    if not roll_no or not name or not course or not branch:
-        return jsonify({"status": "error", "message": "All fields are required"})
+    if not roll_no:
+        return jsonify({"status": "error", "message": "Roll Number is required"})
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Check if the roll number already exists
+    cur.execute("SELECT * FROM students WHERE roll_no = ?", (roll_no,))
+    existing = cur.fetchone()
 
     photo = request.files.get("photo")
     image_path = None
-
     if photo and photo.filename:
         filename = f"{roll_no}.png"
         full_path = os.path.join(UPLOAD_DIR, filename)
         photo.save(full_path)
         image_path = f"uploads/{filename}"
 
-    # In this basic version, use roll_no as face_id
-    face_id = roll_no
+    # If student exists → UPDATE
+    if existing:
+        update_fields = []
+        update_values = []
 
-    conn = get_db_connection()
-    cur = conn.cursor()
+        if name:
+            update_fields.append("name = ?")
+            update_values.append(name)
 
-    if sid:
-        # Get current image_path if we didn't upload new one
-        if image_path is None:
-            cur.execute("SELECT image_path FROM students WHERE id = ?", (sid,))
-            row = cur.fetchone()
-            image_path = row["image_path"] if row else None
+        if course:
+            update_fields.append("course = ?")
+            update_values.append(course)
 
-        cur.execute(
-            """
-            UPDATE students
-            SET roll_no = ?, name = ?, course = ?, branch = ?, image_path = ?, face_id = ?
-            WHERE id = ?
-            """,
-            (roll_no, name, course, branch, image_path, face_id, sid)
-        )
-        msg = "Student updated successfully"
-    else:
-        cur.execute(
-            """
-            INSERT INTO students (roll_no, name, course, branch, image_path, face_id)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (roll_no, name, course, branch, image_path, face_id)
-        )
-        msg = "Student added successfully"
+        if branch:
+            update_fields.append("branch = ?")
+            update_values.append(branch)
 
+        if image_path:
+            update_fields.append("image_path = ?")
+            update_values.append(image_path)
+
+        # Always update face_id = roll_no
+        update_fields.append("face_id = ?")
+        update_values.append(roll_no)
+
+        if update_fields:
+            update_values.append(roll_no)
+            cur.execute(
+                f"UPDATE students SET {', '.join(update_fields)} WHERE roll_no = ?",
+                update_values
+            )
+            conn.commit()
+
+        conn.close()
+        return jsonify({"status": "success", "message": "Student updated successfully"})
+
+    # If not exists → INSERT new
+    cur.execute(
+        """
+        INSERT INTO students (roll_no, name, course, branch, image_path, face_id)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (roll_no, name, course, branch, image_path, roll_no)
+    )
     conn.commit()
     conn.close()
-    return jsonify({"status": "success", "message": msg})
-
-
+    return jsonify({"status": "success", "message": "Student added successfully"})
+    
 @app.route("/api/delete_student", methods=["POST"])
 def delete_student():
     roll_no = request.form.get("roll_no", "").strip()
