@@ -121,12 +121,15 @@ const pages = {
 
   scan: `
     <div class="card" style="max-width:400px;margin:auto;">
-      <h2>Upload Photo for Scan</h2>
+      <h2>Scan Student Face</h2>
       <input type="file" id="imageInput" accept="image/*">
-      <button class="btn btn-primary" onclick="processImage()">Process</button>
-      <h3>Result:</h3>
-      <img id="outputImg" style="max-width:300px;">
-      <p class="msg-info">Later, this will also fetch student data using face_id.</p>
+      <button class="btn btn-primary" onclick="processImage()">Scan & Match</button>
+
+      <h3 style="margin-top:16px;">Uploaded</h3>
+      <img id="previewImg" style="max-width:300px;display:none;">
+
+      <h3 style="margin-top:16px;">Matched Student</h3>
+      <div id="scanResult"></div>
     </div>
   `
 };
@@ -298,17 +301,51 @@ async function deleteStudent() {
 
 async function processImage() {
   const input = document.getElementById("imageInput");
-  if (!input.files.length) {
+  const resultBox = document.getElementById("scanResult");
+  const preview = document.getElementById("previewImg");
+
+  resultBox.innerHTML = "";
+  if (!input || !input.files.length) {
     alert("Select an image first");
     return;
   }
 
-  const formData = new FormData();
-  formData.append("image", input.files[0]);
+  // Show preview of uploaded image
+  const file = input.files[0];
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = "block";
 
-  const r = await fetch("/api/process_image", { method: "POST", body: formData });
-  const blob = await r.blob();
-  document.getElementById("outputImg").src = URL.createObjectURL(blob);
+  const formData = new FormData();
+  formData.append("image", file);
+
+  try {
+    const r = await fetch("/api/scan_face", {
+      method: "POST",
+      body: formData
+    });
+
+    const data = await r.json();
+
+    if (data.status === "success") {
+      const s = data.student;
+      const photoHtml = s.image_path
+        ? `<img src="/static/${s.image_path}" style="max-width:120px;display:block;margin-top:8px;">`
+        : "";
+
+      resultBox.innerHTML = `
+        <p><b>Roll:</b> ${s.roll_no}</p>
+        <p><b>Name:</b> ${s.name || "-"}</p>
+        <p><b>Course:</b> ${s.course || "-"}</p>
+        <p><b>Branch:</b> ${s.branch || "-"}</p>
+        ${photoHtml}
+      `;
+    } else {
+      resultBox.innerHTML = `<p class="msg-error">${data.message || "No match found"}</p>`;
+    }
+  } catch (err) {
+    console.error(err);
+    resultBox.innerHTML = `<p class="msg-error">Error while scanning</p>`;
+  }
 }
 
 
