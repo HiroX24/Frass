@@ -334,16 +334,6 @@ th {
     gap: 4px;
   }
 
-  nav {
-    flex-wrap: wrap;
-    width: 100%;
-    gap: 6px;
-  }
-
-  nav a {
-    font-size: 0.8rem;
-  }
-
   .hero {
     grid-template-columns: minmax(0, 1fr);
   }
