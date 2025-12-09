@@ -83,10 +83,15 @@ def init_db():
 
 def extract_face_vector(image_bgr):
     """
-    Detects the largest face in the image, converts to grayscale,
+    Detects the largest face in the image (if any), converts to grayscale,
     resizes, flattens and normalizes to a 1D vector.
+
+    If no face is detected, falls back to the whole image instead of
+    returning None – this avoids "always first student" behaviour when
+    detection fails.
     """
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+
     faces = face_cascade.detectMultiScale(
         gray,
         scaleFactor=1.2,
@@ -94,17 +99,20 @@ def extract_face_vector(image_bgr):
         minSize=(60, 60)
     )
 
-    if len(faces) == 0:
-        return None
+    if len(faces) > 0:
+        # pick the largest detected face
+        x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
+        patch = gray[y:y + h, x:x + w]
+    else:
+        # fallback: use entire image (still better than "no vector")
+        patch = gray
 
-    # pick largest face
-    x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
-    face = gray[y:y + h, x:x + w]
-    face_resized = cv2.resize(face, (80, 80))
-
-    vec = face_resized.flatten().astype("float32")
-    norm = np.linalg.norm(vec) + 1e-6
-    return vec / norm
+    patch = cv2.resize(patch, (96, 96))
+    vec = patch.astype("float32").ravel()
+    norm = np.linalg.norm(vec)
+    if norm > 0:
+        vec /= norm
+    return vec
     
 def setup():
     init_db()
@@ -323,14 +331,13 @@ def scan_face():
     if img is None:
         return jsonify({"status": "error", "message": "Invalid image"}), 400
 
+    # vector for the incoming scan
     target_vec = extract_face_vector(img)
-    if target_vec is None:
-        return jsonify({"status": "error", "message": "No face detected in image"}), 400
 
     # get all students that have a saved photo
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM students WHERE image_path IS NOT NULL")
+    cur.execute("SELECT id, roll_no, name, course, branch, image_path FROM students WHERE image_path IS NOT NULL")
     students = cur.fetchall()
     conn.close()
 
@@ -351,8 +358,6 @@ def scan_face():
             continue
 
         ref_vec = extract_face_vector(ref_img)
-        if ref_vec is None:
-            continue
 
         dist = float(np.linalg.norm(target_vec - ref_vec))
 
@@ -360,17 +365,22 @@ def scan_face():
             best_dist = dist
             best_student = s
 
-    # threshold: tweak if it misbehaves
-    THRESHOLD = 0.75
+    # more strict threshold: reject random "closest" matches
+    THRESHOLD = 0.55
 
     if best_student is None or best_dist is None or best_dist > THRESHOLD:
-        return jsonify({"status": "error", "message": "No matching student found"})
+        return jsonify({
+            "status": "error",
+            "message": "No matching student found",
+            "score": best_dist
+        })
 
     return jsonify({
         "status": "success",
         "student": best_student,
         "score": best_dist
     })
+    
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
