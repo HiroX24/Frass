@@ -11,9 +11,6 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from psycopg2 import Binary
 
-# -------------------------------------------------------
-# PATH CONFIG
-# -------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 UPLOAD_DIR = os.path.join(STATIC_DIR, "uploads")
@@ -22,17 +19,20 @@ CASCADE_PATH = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 face_cascade = cv2.CascadeClassifier(CASCADE_PATH)
 
 app = Flask(__name__)
-app.secret_key = "FRASS_SECRET_KEY_CHANGE_ME"
+app.secret_key = "FRASS_SECRET_KEY_CHANGE_ME"   # for sessions
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL environment variable not set")
 
 
-# -------------------------------------------------------
-# DB HELPERS
-# -------------------------------------------------------
+# ------------------------ DB HELPERS ------------------------ #
+
 def get_db_connection():
+    """
+    Open a new connection to PostgreSQL using DATABASE_URL.
+    Returns a connection with RealDictCursor so rows behave like dicts.
+    """
     conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
     return conn
 
@@ -43,30 +43,33 @@ def init_db():
     conn = get_db_connection()
     cur = conn.cursor()
 
+    # USERS TABLE
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
+            id        SERIAL PRIMARY KEY,
+            email     TEXT UNIQUE NOT NULL,
+            password  TEXT NOT NULL
         )
         """
     )
 
+    # STUDENTS TABLE (serial, roll, name, course, branch, image, face_id)
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS students (
-            id SERIAL PRIMARY KEY,
-            roll_no TEXT NOT NULL,
-            name TEXT,
-            course TEXT,
-            branch TEXT,
+            id         SERIAL PRIMARY KEY,
+            roll_no    TEXT NOT NULL,
+            name       TEXT,
+            course     TEXT,
+            branch     TEXT,
             image_path TEXT,
-            face_id TEXT
+            face_id    TEXT
         )
         """
     )
 
+    # default auto user (ignore if already exists)
     cur.execute(
         """
         INSERT INTO users (email, password)
@@ -75,53 +78,67 @@ def init_db():
         """,
         ("admin@frass.com", "admin123")
     )
-
+    
+    # Ensure photo_data column exists for storing image bytes
     cur.execute(
-        "ALTER TABLE students ADD COLUMN IF NOT EXISTS photo_data BYTEA"
+        """
+        ALTER TABLE students
+        ADD COLUMN IF NOT EXISTS photo_data BYTEA
+        """
     )
-    cur.execute(
-        "ALTER TABLE students ADD COLUMN IF NOT EXISTS face_vec BYTEA"
-    )
-
     conn.commit()
     conn.close()
 
-
 def extract_face_vector(image_bgr):
+    """
+    Detects the largest face in the image (if any), converts to grayscale,
+    resizes, flattens and normalizes to a 1D vector.
+
+    If no face is detected, falls back to the whole image instead of
+    returning None – this avoids "always first student" behaviour when
+    detection fails.
+    """
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
 
     faces = face_cascade.detectMultiScale(
-        gray, scaleFactor=1.2, minNeighbors=5, minSize=(60, 60)
+        gray,
+        scaleFactor=1.2,
+        minNeighbors=5,
+        minSize=(60, 60)
     )
 
-    if len(faces) == 0:
-        return None
+    if len(faces) > 0:
+        # pick the largest detected face
+        x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
+        patch = gray[y:y + h, x:x + w]
+    else:
+        # fallback: use entire image (still better than "no vector")
+        patch = gray
 
-    x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
-    face = gray[y:y + h, x:x + w]
-
-    face_resized = cv2.resize(face, (96, 96))
-
-    vec = face_resized.astype("float32").ravel()
+    patch = cv2.resize(patch, (96, 96))
+    vec = patch.astype("float32").ravel()
     norm = np.linalg.norm(vec)
     if norm > 0:
         vec /= norm
     return vec
+    
+def setup():
+    init_db()
 
 
-# Run DB migration once
-init_db()
+# run DB init when app module is imported
+setup()
 
 
-# -------------------------------------------------------
-# ROUTES
-# -------------------------------------------------------
+# ------------------------ ROUTES ------------------------ #
+
 @app.route("/")
 def home():
     return render_template("main.html")
 
 
-# ------------------ AUTH ------------------
+# ---------- AUTH: SIGNUP & LOGIN ---------- #
+
 @app.route("/api/signup", methods=["POST"])
 def signup():
     email = request.form.get("email", "").strip()
@@ -134,17 +151,22 @@ def signup():
     cur = conn.cursor()
 
     try:
-        cur.execute("INSERT INTO users (email, password) VALUES (%s, %s)",
-                    (email, password))
+        cur.execute(
+            "INSERT INTO users (email, password) VALUES (%s, %s)",
+            (email, password)
+        )
         conn.commit()
     except psycopg2.errors.UniqueViolation:
         conn.rollback()
         conn.close()
         return jsonify({"status": "error", "message": "Email already registered"})
-    finally:
+    except psycopg2.Error:
+        conn.rollback()
         conn.close()
+        return jsonify({"status": "error", "message": "Database error"})
+    conn.close()
 
-    return jsonify({"status": "success", "message": "Account created"})
+    return jsonify({"status": "success", "message": "User registered successfully"})
 
 
 @app.route("/api/login", methods=["POST"])
@@ -155,7 +177,11 @@ def login():
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT * FROM users WHERE LOWER(email)=LOWER(%s) AND LOWER(password)=LOWER(%s)",
+        """
+        SELECT * FROM users
+        WHERE LOWER(email) = LOWER(%s)
+          AND LOWER(password) = LOWER(%s)
+        """,
         (email, password)
     )
     user = cur.fetchone()
@@ -165,8 +191,8 @@ def login():
         session["logged_in"] = True
         session["user_email"] = email
         return jsonify({"status": "success"})
-
-    return jsonify({"status": "error", "message": "Invalid credentials"})
+    else:
+        return jsonify({"status": "error", "message": "Invalid email or password"})
 
 
 @app.route("/api/logout", methods=["POST"])
@@ -175,19 +201,22 @@ def logout():
     return jsonify({"status": "success"})
 
 
-# ------------------ STUDENTS CRUD ------------------
+# ---------- STUDENT CRUD ---------- #
+
 @app.route("/api/students", methods=["GET"])
 def get_students():
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT id, roll_no, name, course, branch, image_path
-        FROM students ORDER BY id ASC
+        SELECT id, roll_no, name, course, branch, image_path, face_id
+        FROM students
+        ORDER BY id ASC
         """
     )
     rows = cur.fetchall()
     conn.close()
+    # rows are already dicts because of RealDictCursor
     return jsonify(rows)
 
 
@@ -199,88 +228,90 @@ def save_student():
     branch = request.form.get("branch", "").strip()
 
     if not roll_no:
-        return jsonify({"status": "error", "message": "Roll Number required"})
+        return jsonify({"status": "error", "message": "Roll Number is required"})
 
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM students WHERE roll_no=%s", (roll_no,))
+
+    # Check if the roll number already exists
+    cur.execute("SELECT * FROM students WHERE roll_no = %s", (roll_no,))
     existing = cur.fetchone()
 
     photo = request.files.get("photo")
     image_path = None
     photo_bytes = None
-    face_vec_bytes = None
 
     if photo and photo.filename:
+        # read uploaded bytes
         raw = photo.read()
-        img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
-        if img is None:
-            return jsonify({"status": "error", "message": "Invalid image"})
+        file_arr = np.frombuffer(raw, np.uint8)
+        img = cv2.imdecode(file_arr, cv2.IMREAD_COLOR)
 
-        vec = extract_face_vector(img)
-        if vec is None:
-            return jsonify({"status": "error",
-                            "message": "Face not detected. Upload a clear face image."})
-
-        face_vec_bytes = vec.tobytes()
-
-        ok, buffer = cv2.imencode(".png", img)
-        if ok:
-            photo_bytes = buffer.tobytes()
-            filename = f"{roll_no}.png"
-            full_path = os.path.join(UPLOAD_DIR, filename)
-            with open(full_path, "wb") as f:
-                f.write(photo_bytes)
-            image_path = f"uploads/{filename}"
+        if img is not None:
+            # normalize & store as PNG in DB
+            ok, buffer = cv2.imencode(".png", img)
+            if ok:
+                photo_bytes = buffer.tobytes()
+                # optional: also save to filesystem for this deployment
+                filename = f"{roll_no}.png"
+                full_path = os.path.join(UPLOAD_DIR, filename)
+                os.makedirs(os.path.dirname(full_path), exist_ok=True)
+                with open(full_path, "wb") as f:
+                    f.write(photo_bytes)
+                image_path = f"uploads/{filename}"
+                
+    # face_id = roll_no in this basic version
+    face_id = roll_no
 
     if existing:
-        updates = []
-        values = []
+        # UPDATE only fields that are provided
+        update_fields = []
+        update_values = []
 
         if name:
-            updates.append("name=%s")
-            values.append(name)
-        if course:
-            updates.append("course=%s")
-            values.append(course)
-        if branch:
-            updates.append("branch=%s")
-            values.append(branch)
-        if image_path:
-            updates.append("image_path=%s")
-            values.append(image_path)
-        if photo_bytes:
-            updates.append("photo_data=%s")
-            values.append(Binary(photo_bytes))
-        if face_vec_bytes:
-            updates.append("face_vec=%s")
-            values.append(Binary(face_vec_bytes))
+            update_fields.append("name = %s")
+            update_values.append(name)
 
-        if updates:
-            values.append(roll_no)
-            sql = f"UPDATE students SET {', '.join(updates)} WHERE roll_no=%s"
-            cur.execute(sql, values)
+        if course:
+            update_fields.append("course = %s")
+            update_values.append(course)
+
+        if branch:
+            update_fields.append("branch = %s")
+            update_values.append(branch)
+
+        if image_path:
+            update_fields.append("image_path = %s")
+            update_values.append(image_path)
+
+        update_fields.append("face_id = %s")
+        update_values.append(face_id)
+
+        if photo_bytes is not None:
+            update_fields.append("photo_data = %s")
+            update_values.append(Binary(photo_bytes))
+
+        if update_fields:
+            update_values.append(roll_no)
+            sql = f"UPDATE students SET {', '.join(update_fields)} WHERE roll_no = %s"
+            cur.execute(sql, update_values)
             conn.commit()
 
         conn.close()
-        return jsonify({"status": "success", "message": "Updated"})
+        return jsonify({"status": "success", "message": "Student updated successfully"})
 
+    # INSERT new student
     cur.execute(
         """
-        INSERT INTO students (roll_no, name, course, branch, image_path,
-                              photo_data, face_vec)
-        VALUES (%s,%s,%s,%s,%s,%s,%s)
+        INSERT INTO students (roll_no, name, course, branch, image_path, face_id, photo_data)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
         """,
-        (
-            roll_no, name, course, branch,
-            image_path,
-            Binary(photo_bytes) if photo_bytes else None,
-            Binary(face_vec_bytes) if face_vec_bytes else None
-        )
+        (roll_no, name, course, branch, image_path, face_id,
+         Binary(photo_bytes) if photo_bytes is not None else None)
     )
     conn.commit()
     conn.close()
-    return jsonify({"status": "success", "message": "Added"})
+    return jsonify({"status": "success", "message": "Student added successfully"})
 
 
 @app.route("/api/delete_student", methods=["POST"])
@@ -289,17 +320,33 @@ def delete_student():
 
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("DELETE FROM students WHERE roll_no=%s", (roll_no,))
+    cur.execute("DELETE FROM students WHERE roll_no = %s", (roll_no,))
     conn.commit()
     deleted = cur.rowcount
     conn.close()
 
     if deleted > 0:
-        return jsonify({"status": "success"})
-    return jsonify({"status": "error", "message": "Roll not found"})
+        return jsonify({"status": "success", "message": "Student deleted successfully"})
+    else:
+        return jsonify({"status": "error", "message": "No student with that Roll Number"})
 
 
-# ------------------ FACE MATCH ------------------
+# ---------- LOOKUP BY face_id (for future OpenCV) ---------- #
+
+@app.route("/api/student_by_face/<face_id>", methods=["GET"])
+def student_by_face(face_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM students WHERE face_id = %s", (face_id,))
+    row = cur.fetchone()
+    conn.close()
+    if row:
+        return jsonify(row)
+    return jsonify({"status": "error", "message": "No student found"}), 404
+
+
+# ---------- OPENCV ROUTE ---------- #
+
 @app.route("/api/scan_face", methods=["POST"])
 def scan_face():
     file = request.files.get("image")
@@ -311,20 +358,15 @@ def scan_face():
     if img is None:
         return jsonify({"status": "error", "message": "Invalid image"}), 400
 
-    # 1) vector for the incoming scan
+    # vector for incoming scan
     target_vec = extract_face_vector(img)
-    if target_vec is None:
-        return jsonify({"status": "error", "message": "No face detected in scan"}), 400
 
-    # 2) students with stored face_vec
+    # students with stored photo_data
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
-        """
-        SELECT id, roll_no, name, course, branch, image_path, face_vec
-        FROM students
-        WHERE face_vec IS NOT NULL
-        """
+        "SELECT id, roll_no, name, course, branch, photo_data "
+        "FROM students WHERE photo_data IS NOT NULL"
     )
     students = cur.fetchall()
     conn.close()
@@ -333,36 +375,37 @@ def scan_face():
     best_dist = None
 
     for s in students:
-        vec_bytes = s.get("face_vec")
-        if not vec_bytes:
+        data = s.get("photo_data")
+        if not data:
             continue
 
-        vec_db = np.frombuffer(vec_bytes, dtype="float32")
-        if vec_db.size == 0:
+        arr = np.frombuffer(data, np.uint8)
+        ref_img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if ref_img is None:
             continue
 
-        dist = float(np.linalg.norm(target_vec - vec_db))
+        ref_vec = extract_face_vector(ref_img)
+        dist = float(np.linalg.norm(target_vec - ref_vec))
 
         if best_dist is None or dist < best_dist:
             best_dist = dist
-            best_student = s
+            best_student = {
+                "id": s["id"],
+                "roll_no": s["roll_no"],
+                "name": s["name"],
+                "course": s["course"],
+                "branch": s["branch"],
+                "image_path": s.get("image_path"),
+            }
 
-    # 3) more relaxed threshold (you can tune this)
-    THRESHOLD = 0.85  # was 0.55
+    THRESHOLD = 0.55
 
-    if best_student is None or best_dist is None:
-        return jsonify({
-            "status": "error",
-            "message": "No enrolled faces to compare",
-            "score": best_dist
-        }), 404
-
-    if best_dist > THRESHOLD:
+    if best_student is None or best_dist is None or best_dist > THRESHOLD:
         return jsonify({
             "status": "error",
             "message": "No matching student found",
             "score": best_dist
-        }), 404
+        })
 
     return jsonify({
         "status": "success",
@@ -374,19 +417,16 @@ def scan_face():
 def student_photo(sid):
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT photo_data FROM students WHERE id=%s", (sid,))
+    cur.execute("SELECT photo_data FROM students WHERE id = %s", (sid,))
     row = cur.fetchone()
     conn.close()
 
     if not row or not row.get("photo_data"):
         return "", 404
 
-    return send_file(BytesIO(row["photo_data"]), mimetype="image/png")
-
-
-# -------------------------------------------------------
-# RUN
-# -------------------------------------------------------
+    data = row["photo_data"]
+    return send_file(BytesIO(data), mimetype="image/png")
+    
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
