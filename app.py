@@ -9,6 +9,7 @@ from flask import (
 )
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from psycopg2 import Binary
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
@@ -77,7 +78,14 @@ def init_db():
         """,
         ("admin@frass.com", "admin123")
     )
-
+    
+    # Ensure photo_data column exists for storing image bytes
+    cur.execute(
+        """
+        ALTER TABLE students
+        ADD COLUMN IF NOT EXISTS photo_data BYTEA
+        """
+    )
     conn.commit()
     conn.close()
 
@@ -231,13 +239,27 @@ def save_student():
 
     photo = request.files.get("photo")
     image_path = None
-    if photo and photo.filename:
-        filename = f"{roll_no}.png"
-        full_path = os.path.join(UPLOAD_DIR, filename)
-        os.makedirs(os.path.dirname(full_path), exist_ok=True)
-        photo.save(full_path)
-        image_path = f"uploads/{filename}"
+    photo_bytes = None
 
+    if photo and photo.filename:
+        # read uploaded bytes
+        raw = photo.read()
+        file_arr = np.frombuffer(raw, np.uint8)
+        img = cv2.imdecode(file_arr, cv2.IMREAD_COLOR)
+
+        if img is not None:
+            # normalize & store as PNG in DB
+            ok, buffer = cv2.imencode(".png", img)
+            if ok:
+                photo_bytes = buffer.tobytes()
+                # optional: also save to filesystem for this deployment
+                filename = f"{roll_no}.png"
+                full_path = os.path.join(UPLOAD_DIR, filename)
+                os.makedirs(os.path.dirname(full_path), exist_ok=True)
+                with open(full_path, "wb") as f:
+                    f.write(photo_bytes)
+                image_path = f"uploads/{filename}"
+                
     # face_id = roll_no in this basic version
     face_id = roll_no
 
@@ -265,6 +287,10 @@ def save_student():
         update_fields.append("face_id = %s")
         update_values.append(face_id)
 
+        if photo_bytes is not None:
+            update_fields.append("photo_data = %s")
+            update_values.append(Binary(photo_bytes))
+
         if update_fields:
             update_values.append(roll_no)
             sql = f"UPDATE students SET {', '.join(update_fields)} WHERE roll_no = %s"
@@ -277,10 +303,11 @@ def save_student():
     # INSERT new student
     cur.execute(
         """
-        INSERT INTO students (roll_no, name, course, branch, image_path, face_id)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        INSERT INTO students (roll_no, name, course, branch, image_path, face_id, photo_data)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
         """,
-        (roll_no, name, course, branch, image_path, face_id)
+        (roll_no, name, course, branch, image_path, face_id,
+         Binary(photo_bytes) if photo_bytes is not None else None)
     )
     conn.commit()
     conn.close()
@@ -331,13 +358,16 @@ def scan_face():
     if img is None:
         return jsonify({"status": "error", "message": "Invalid image"}), 400
 
-    # vector for the incoming scan
+    # vector for incoming scan
     target_vec = extract_face_vector(img)
 
-    # get all students that have a saved photo
+    # students with stored photo_data
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT id, roll_no, name, course, branch, image_path FROM students WHERE image_path IS NOT NULL")
+    cur.execute(
+        "SELECT id, roll_no, name, course, branch, photo_data "
+        "FROM students WHERE photo_data IS NOT NULL"
+    )
     students = cur.fetchall()
     conn.close()
 
@@ -345,27 +375,29 @@ def scan_face():
     best_dist = None
 
     for s in students:
-        img_rel_path = s.get("image_path")
-        if not img_rel_path:
+        data = s.get("photo_data")
+        if not data:
             continue
 
-        full_path = os.path.join(STATIC_DIR, img_rel_path)
-        if not os.path.exists(full_path):
-            continue
-
-        ref_img = cv2.imread(full_path)
+        arr = np.frombuffer(data, np.uint8)
+        ref_img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
         if ref_img is None:
             continue
 
         ref_vec = extract_face_vector(ref_img)
-
         dist = float(np.linalg.norm(target_vec - ref_vec))
 
         if best_dist is None or dist < best_dist:
             best_dist = dist
-            best_student = s
+            best_student = {
+                "id": s["id"],
+                "roll_no": s["roll_no"],
+                "name": s["name"],
+                "course": s["course"],
+                "branch": s["branch"],
+                "image_path": s.get("image_path"),
+            }
 
-    # more strict threshold: reject random "closest" matches
     THRESHOLD = 0.55
 
     if best_student is None or best_dist is None or best_dist > THRESHOLD:
@@ -380,6 +412,20 @@ def scan_face():
         "student": best_student,
         "score": best_dist
     })
+
+@app.route("/api/student_photo/<int:sid>")
+def student_photo(sid):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT photo_data FROM students WHERE id = %s", (sid,))
+    row = cur.fetchone()
+    conn.close()
+
+    if not row or not row.get("photo_data"):
+        return "", 404
+
+    data = row["photo_data"]
+    return send_file(BytesIO(data), mimetype="image/png")
     
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
