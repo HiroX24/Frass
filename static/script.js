@@ -33,8 +33,8 @@ const pages = {
   home: `
     <div class="card hero">
       <div>
-        <div class="pill">Face Recognition · Smart Attendance</div>
-        <h1 class="hero-title">FRASS – Fast, Reliable Attendance for Students</h1>
+        <div class="pill">Face Recognition · Student Database System</div>
+        <h1 class="hero-title">FRASS – Fast, Reliable Database for Students</h1>
         <p class="hero-subtitle">
           Scan a face, fetch the record, and update your database in seconds.
         </p>
