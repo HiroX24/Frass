@@ -304,19 +304,28 @@ def delete_student():
 def scan_face():
     file = request.files.get("image")
     if not file:
-        return jsonify({"status": "error", "message": "No file"})
+        return jsonify({"status": "error", "message": "No file uploaded"}), 400
 
-    img = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
+    file_bytes = np.frombuffer(file.read(), np.uint8)
+    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     if img is None:
-        return jsonify({"status": "error", "message": "Invalid image"})
+        return jsonify({"status": "error", "message": "Invalid image"}), 400
 
+    # 1) vector for the incoming scan
     target_vec = extract_face_vector(img)
     if target_vec is None:
-        return jsonify({"status": "error", "message": "No face detected"})
+        return jsonify({"status": "error", "message": "No face detected in scan"}), 400
 
+    # 2) students with stored face_vec
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM students WHERE face_vec IS NOT NULL")
+    cur.execute(
+        """
+        SELECT id, roll_no, name, course, branch, image_path, face_vec
+        FROM students
+        WHERE face_vec IS NOT NULL
+        """
+    )
     students = cur.fetchall()
     conn.close()
 
@@ -328,20 +337,38 @@ def scan_face():
         if not vec_bytes:
             continue
 
-        vec = np.frombuffer(vec_bytes, dtype="float32")
-        dist = float(np.linalg.norm(target_vec - vec))
+        vec_db = np.frombuffer(vec_bytes, dtype="float32")
+        if vec_db.size == 0:
+            continue
+
+        dist = float(np.linalg.norm(target_vec - vec_db))
 
         if best_dist is None or dist < best_dist:
             best_dist = dist
             best_student = s
 
-    THRESHOLD = 0.55
+    # 3) more relaxed threshold (you can tune this)
+    THRESHOLD = 0.85  # was 0.55
 
-    if not best_student or best_dist > THRESHOLD:
-        return jsonify({"status": "error", "message": "No match", "score": best_dist})
+    if best_student is None or best_dist is None:
+        return jsonify({
+            "status": "error",
+            "message": "No enrolled faces to compare",
+            "score": best_dist
+        }), 404
 
-    return jsonify({"status": "success", "student": best_student, "score": best_dist})
+    if best_dist > THRESHOLD:
+        return jsonify({
+            "status": "error",
+            "message": "No matching student found",
+            "score": best_dist
+        }), 404
 
+    return jsonify({
+        "status": "success",
+        "student": best_student,
+        "score": best_dist
+    })
 
 @app.route("/api/student_photo/<int:sid>")
 def student_photo(sid):
