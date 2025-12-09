@@ -354,9 +354,10 @@ async function loadStudents() {
   `;
 
   students.forEach(s => {
-    const imgTag = s.image_path
-      ? `<img src="/static/${s.image_path}" style="max-width:60px;">`
-      : "-";
+    const hasPhoto = s.image_path;  // still acts as flag
+const imgTag = hasPhoto
+  ? `<img src="/api/student_photo/${s.id}" style="max-width:60px;">`
+  : "-";
     html += `
       <tr>
         <td>${s.id}</td>
@@ -521,8 +522,8 @@ async function captureFrame() {
     const s = res.student;
 
     const imgCell = s.image_path
-      ? `<img src="/static/${s.image_path}" alt="Student photo">`
-      : "-";
+  ? `<img src="/api/student_photo/${s.id}" alt="Student photo">`
+  : "-";
 
     resultBox.innerHTML = `
       <div class="table-wrapper">
